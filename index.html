@@ -1,5 +1,473 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Atualizador Omie - Valor</title>
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#010101;color:#F6EEDE;font-family:system-ui,sans-serif}p{color:#ECDBB8}</style>
-</head><body><main><h1>Atualizador Omie</h1><p>Em construção.</p></main></body></html>
+<meta name="theme-color" content="#010101">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+:root{
+  --preto:#010101; --bege:#ECDBB8; --creme:#F6EEDE; --dourado:#A8884F;
+  --fundo:#F6EEDE; --cartao:#FFFDF8; --tinta:#1B1A17; --apagado:#6E6657; --linha:#E4D6B8;
+  --ok:#2F7D4F; --alerta:#B4532A; --erro:#B3261E; --info:#7A6235;
+  --raio:12px; --f:"Montserrat","Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--fundo);color:var(--tinta);font:15px/1.4 var(--f)}
+button,input,select,textarea{font:inherit;color:inherit}
+header{background:var(--preto);color:var(--creme);padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:5}
+header .logo{height:38px;width:auto;flex:none}
+header .cab{flex:1;min-width:0}
+header h1{margin:0;font-size:17px;font-weight:600;color:var(--bege)}
+header small{color:#BFB49C;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header button{background:none;border:1px solid #5a523f;color:var(--bege);border-radius:8px;padding:6px 10px;cursor:pointer}
+.teste{background:var(--dourado);color:var(--preto);font-weight:700;font-size:12px;padding:3px 8px;border-radius:999px;white-space:nowrap}
+nav{display:flex;gap:4px;overflow-x:auto;background:var(--preto);padding:0 12px 8px;position:sticky;top:58px;z-index:4}
+nav button{border:0;background:#1f1d18;color:#CFC3A6;border-radius:999px;padding:8px 14px;white-space:nowrap;cursor:pointer}
+nav button[aria-selected="true"]{background:var(--bege);color:var(--preto);font-weight:700}
+main{max-width:860px;margin:0 auto;padding:16px}
+.cartao{background:var(--cartao);border:1px solid var(--linha);border-radius:var(--raio);padding:16px;margin-bottom:14px}
+.cartao h2{margin:0 0 10px;font-size:17px}
+.cartao h3{margin:14px 0 8px;font-size:15px}
+label{display:block;font-size:13px;color:var(--apagado);margin:10px 0 4px}
+input[type=text],input[type=number],input[type=date],input[type=email],select,textarea{width:100%;padding:10px 12px;border:1px solid var(--linha);border-radius:10px;background:#fff}
+textarea{min-height:70px}
+.linha2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:520px){.linha2{grid-template-columns:1fr}}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:10px;padding:12px 18px;background:var(--preto);color:var(--creme);font-weight:600;cursor:pointer}
+.btn.claro{background:var(--bege);color:var(--preto)}
+.btn.borda{background:transparent;border:1px solid var(--linha);color:var(--tinta)}
+.btn.pequeno{padding:7px 12px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default}
+.acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.arquivo{display:block;border:2px dashed var(--dourado);border-radius:var(--raio);padding:26px 16px;text-align:center;cursor:pointer;background:#fffaf0}
+.arquivo input{display:none}
+.arquivo b{display:block;font-size:16px;margin-bottom:4px}
+.aviso{border-radius:10px;padding:10px 12px;margin:10px 0;font-size:14px}
+.aviso.erro{background:#fbe9e7;color:var(--erro)}
+.aviso.alerta{background:#fdf0e6;color:var(--alerta)}
+.aviso.ok{background:#e9f4ec;color:var(--ok)}
+.aviso.info{background:#f4ecdc;color:var(--info)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--linha);background:#fff;border-radius:999px;padding:7px 12px;cursor:pointer;text-align:left}
+.chip[aria-pressed="true"]{background:var(--preto);color:var(--creme);border-color:var(--preto)}
+.chip small{display:block;color:var(--apagado);font-size:11px}
+.chip[aria-pressed="true"] small{color:#BFB49C}
+.lista{max-height:260px;overflow:auto;border:1px solid var(--linha);border-radius:10px;background:#fff}
+.lista button{display:flex;justify-content:space-between;gap:10px;width:100%;border:0;border-bottom:1px solid var(--linha);background:none;padding:10px 12px;text-align:left;cursor:pointer}
+.lista button:last-child{border-bottom:0}
+.lista button:hover{background:#fbf5e8}
+.tag{font-size:11px;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap}
+.tag.bloq{background:#fbe9e7;color:var(--erro)}
+.tag.cert{background:#e9f4ec;color:var(--ok)}
+.tag.prov{background:#f4ecdc;color:var(--info)}
+.tag.sem{background:#eee;color:#555}
+.tit-lista{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.tit{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border:1px solid var(--linha);border-radius:10px;padding:9px 12px;background:#fff}
+.tit small{color:var(--apagado)}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.resumo{background:#fbf5e8;border-radius:10px;padding:10px 12px;margin-top:10px;font-size:14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:var(--preto);color:var(--creme);border-radius:var(--raio);padding:14px}
+.kpi span{display:block;color:#BFB49C;font-size:12px}
+.kpi b{display:block;font-size:22px;color:var(--bege);font-variant-numeric:tabular-nums;margin-top:4px}
+.kpi.claro{background:var(--cartao);color:var(--tinta);border:1px solid var(--linha)}
+.kpi.claro span{color:var(--apagado)}.kpi.claro b{color:var(--tinta)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--linha);text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--apagado);font-weight:600}
+td.v,th.v{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.barras{display:flex;align-items:flex-end;gap:3px;height:90px;margin-top:8px}
+.barras i{flex:1;background:var(--dourado);border-radius:3px 3px 0 0;min-height:2px}
+.barras i.hoje{background:var(--preto)}
+.carregando{color:var(--apagado);padding:14px 0}
+.vazio{color:var(--apagado);font-size:14px}
+.entrar{min-height:100vh;display:grid;place-items:center;background:var(--preto);padding:24px}
+.entrar div{text-align:center;color:var(--creme);max-width:360px}
+.entrar h1{color:var(--bege);font-weight:600}
+.entrar p{color:#BFB49C}
+#gbtn{display:inline-block;margin-top:12px}
+.thumb{max-width:140px;max-height:180px;border-radius:8px;border:1px solid var(--linha);float:right;margin:0 0 8px 10px}
+details summary{cursor:pointer;color:var(--apagado);font-size:13px;margin-top:8px}
+pre{white-space:pre-wrap;font-size:12px;background:#fff;border:1px solid var(--linha);border-radius:8px;padding:8px;max-height:200px;overflow:auto}
+.item{border:1px solid var(--linha);border-radius:var(--raio);padding:12px;margin-bottom:10px;background:#fff}
+.item .topo{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.item .topo b{font-size:16px}
+.sw{display:flex;align-items:center;gap:8px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+const API = "https://script.google.com/macros/s/AKfycbybHCyyIpTvsFzi4wVFl0zygML3lTXLtakizWP_qhZ_tsaTeJkqmAovsIsFUJV2trx7cg/exec";
+const CLIENT_ID = "544758970206-daej493r9psjt9an4pfq3ceel5u7c963.apps.googleusercontent.com";
+const LOGO = '<svg class="logo" viewBox="0 0 760 640" role="img" aria-label="Valor Assessoria Empresarial"><path d="M240 30 H720 V540 H30 V60" fill="none" stroke="#ECDBB8" stroke-width="22"/><text x="388" y="372" text-anchor="middle" font-family="Montserrat, Helvetica Neue, Arial, sans-serif" font-weight="700" font-size="250" fill="#A8884F" fill-opacity=".55">VLR</text><text x="375" y="358" text-anchor="middle" font-family="Montserrat, Helvetica Neue, Arial, sans-serif" font-weight="700" font-size="250" fill="#F6EEDE">VLR</text><text x="375" y="630" text-anchor="middle" font-family="Montserrat, Helvetica Neue, Arial, sans-serif" font-size="96" letter-spacing="44" fill="#ECDBB8">VALOR</text></svg>';
+const ABAS = { comprovante: "Comprovante Pix", aviso: "Aviso sem comprovante", pendencias: "Pendências", extrato: "Extrato OFX", gestao: "Gestão", equipe: "Equipe" };
+
+const st = { token: "", eu: null, aba: "", clientes: null, quem: "" };
+try { st.token = sessionStorage.getItem("tk") || ""; st.quem = localStorage.getItem("quem") || ""; } catch (e) {}
+
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const brl = v => "R$ " + Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dataBr = iso => iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4) : "";
+const hojeIso = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const r2 = v => Math.round(Number(v || 0) * 100) / 100;
+const numBr = s => { s = String(s || "").trim(); if (/,/.test(s)) s = s.replace(/\./g, "").replace(",", "."); return Number(s) || 0; };
+
+async function api(acao, dados) {
+  const r = await fetch(API, { method: "POST", body: JSON.stringify({ token: st.token, acao, dados: dados || {} }) });
+  const j = await r.json();
+  if (j.erro) {
+    if (j.login) { sair(j.erro); }
+    throw new Error(j.erro);
+  }
+  return j.dados;
+}
+
+/* ---------------- entrada ---------------- */
+function telaEntrar(msg) {
+  $("#app").innerHTML = `<div class="entrar"><div>${LOGO.replace('class="logo"', 'style="height:96px"')}<h1>Atualizador Omie</h1>
+    <p>Entre com a conta Google liberada pela Valor.</p>${msg ? `<div class="aviso erro">${esc(msg)}</div>` : ""}<div id="gbtn"></div></div></div>`;
+  const iniciar = () => {
+    if (!window.google || !google.accounts) return setTimeout(iniciar, 200);
+    google.accounts.id.initialize({ client_id: CLIENT_ID, callback: r => { st.token = r.credential; try { sessionStorage.setItem("tk", st.token); } catch (e) {} carregar(); }, auto_select: !msg });
+    google.accounts.id.renderButton($("#gbtn"), { theme: "filled_black", size: "large", text: "signin_with", locale: "pt-BR" });
+    if (!msg) google.accounts.id.prompt();
+  };
+  iniciar();
+}
+function sair(msg) {
+  st.token = ""; st.eu = null;
+  try { sessionStorage.removeItem("tk"); } catch (e) {}
+  if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
+  telaEntrar(msg || "");
+}
+async function carregar() {
+  if (!st.token) return telaEntrar();
+  $("#app").innerHTML = `<div class="entrar"><div>${LOGO.replace('class="logo"', 'style="height:96px"')}<p>Carregando…</p></div></div>`;
+  try { st.eu = await api("eu"); } catch (e) { return; }
+  if (st.quem && st.eu.pessoas.indexOf(st.quem) < 0) st.quem = "";
+  st.aba = st.eu.recursos.indexOf(st.aba) >= 0 ? st.aba : st.eu.recursos[0];
+  moldura();
+}
+function moldura() {
+  const eu = st.eu;
+  $("#app").innerHTML = `<header>${LOGO}<div class="cab"><h1>Atualizador Omie</h1><small>${esc(eu.email)}</small></div>
+    ${eu.modoTeste ? '<span class="teste" title="Nada é baixado no Omie: só mostra o que faria">MODO TESTE</span>' : ""}
+    <button id="sair">Sair</button></header>
+    <nav role="tablist">${eu.recursos.map(r => `<button role="tab" data-a="${r}" aria-selected="${r === st.aba}">${ABAS[r]}</button>`).join("")}</nav>
+    <main id="tela"></main>`;
+  $("#sair").onclick = () => sair();
+  document.querySelectorAll("nav button").forEach(b => b.onclick = () => { st.aba = b.dataset.a; moldura(); });
+  ({ comprovante: telaComprovante, aviso: telaAviso, pendencias: telaPendencias, extrato: telaExtrato, gestao: telaGestao, equipe: telaEquipe })[st.aba]();
+}
+function erroNa(el, e) { el.innerHTML = `<div class="aviso erro">${esc(e.message || e)}</div>`; }
+
+/* ---------------- peças comuns ---------------- */
+function campoQuem() {
+  return `<label for="quem">Quem está enviando</label><select id="quem"><option value="">Escolha…</option>${st.eu.pessoas.map(p => `<option ${p === st.quem ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>`;
+}
+function ligarQuem(raiz) {
+  $("#quem", raiz).onchange = e => { st.quem = e.target.value; try { localStorage.setItem("quem", st.quem); } catch (x) {} };
+}
+function campoConta(id, atual) {
+  return `<select id="${id}">${st.eu.contas.map(c => `<option value="${c.codigo}" ${(atual ? c.codigo === atual : c.padrao) ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}</select>`;
+}
+async function obterClientes(recarregar) {
+  if (!st.clientes || recarregar) st.clientes = await api("clientes", { recarregar: !!recarregar });
+  return st.clientes;
+}
+
+/**
+ * Seletor de cliente + títulos. Chama onPronto({codigo, titulos}) sempre que a escolha muda.
+ * sugestoes: [{codigo,nome,motivos}] do servidor. valorFn: devolve o valor pago atual.
+ */
+function seletorCliente(raiz, { sugestoes, valorFn, inicial, onMuda }) {
+  const sel = { codigo: "", nome: "", titulos: [], marcados: new Set() };
+  raiz.innerHTML = `${sugestoes && sugestoes.length ? `<label>Sugestões</label><div class="chips" data-r="sug">${sugestoes.map(s => `<button type="button" class="chip" data-c="${s.codigo}" aria-pressed="false">${esc(s.nome)}<small>${esc((s.motivos || []).join(" · "))}</small></button>`).join("")}</div>` : ""}
+    <label for="busca">Cliente</label><input type="text" id="busca" placeholder="Digite parte do nome ou do CNPJ/CPF" autocomplete="off">
+    <div data-r="res" class="lista" hidden></div>
+    <div data-r="esc"></div><div data-r="tits"></div><div data-r="res2"></div>`;
+  const busca = $("#busca", raiz), res = $('[data-r="res"]', raiz);
+  const norm = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  busca.oninput = async () => {
+    const q = norm(busca.value).trim(), dig = busca.value.replace(/\D/g, "");
+    if (q.length < 2) { res.hidden = true; return; }
+    res.hidden = false;
+    let cl;
+    try { cl = await obterClientes(); } catch (e) { res.innerHTML = `<div class="aviso erro">${esc(e.message)}</div>`; return; }
+    const achados = cl.filter(c => norm(c.nome).includes(q) || (dig.length >= 4 && String(c.documento).replace(/\D/g, "").includes(dig))).slice(0, 30);
+    res.innerHTML = achados.length ? achados.map(c => `<button type="button" data-c="${c.codigo}"><span>${esc(c.nome)}<br><small class="vazio">${esc(c.documento)}</small></span><span class="num">${c.bloqueado ? '<span class="tag bloq">BLOQUEADO</span><br>' : ""}${brl(c.atrasado)} atrasado</span></button>`).join("") : `<div class="vazio" style="padding:10px">Nenhum cliente com título em aberto com esse nome.</div>`;
+    res.querySelectorAll("button").forEach(b => b.onclick = () => escolher(b.dataset.c));
+  };
+  raiz.querySelectorAll('[data-r="sug"] .chip').forEach(b => b.onclick = () => escolher(b.dataset.c));
+
+  async function escolher(codigo) {
+    res.hidden = true; busca.value = "";
+    raiz.querySelectorAll('[data-r="sug"] .chip').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.c === codigo)));
+    let cl = [];
+    try { cl = await obterClientes(); } catch (e) {}
+    const c = cl.find(x => x.codigo === codigo) || (sugestoes || []).find(x => x.codigo === codigo) || { nome: "Cliente " + codigo };
+    sel.codigo = codigo; sel.nome = c.nome;
+    $('[data-r="esc"]', raiz).innerHTML = `<div class="aviso info"><b>${esc(c.nome)}</b>${c.bloqueado ? ' <span class="tag bloq">BLOQUEADO</span>' : ""}</div>`;
+    const tits = $('[data-r="tits"]', raiz);
+    tits.innerHTML = `<div class="carregando">Buscando títulos em aberto no Omie…</div>`;
+    try { sel.titulos = await api("titulosCliente", { codigo }); } catch (e) { return erroNa(tits, e); }
+    sel.marcados = new Set();
+    let soma = 0; const v = valorFn();
+    sel.titulos.forEach(t => { if (soma < v - 0.009) { sel.marcados.add(t.titulo); soma += Number(t.aberto); } });
+    desenharTitulos();
+  }
+  function desenharTitulos() {
+    const tits = $('[data-r="tits"]', raiz);
+    if (!sel.titulos.length) { tits.innerHTML = `<div class="aviso alerta">Este cliente não tem títulos em aberto no Omie.</div>`; atualizar(); return; }
+    const hoje = hojeIso();
+    tits.innerHTML = `<h3>Títulos em aberto (mais antigos primeiro)</h3><div class="tit-lista">${sel.titulos.map(t => `<label class="tit"><input type="checkbox" data-t="${t.titulo}" ${sel.marcados.has(t.titulo) ? "checked" : ""}>
+      <span>Venc. ${dataBr(t.venc)} ${((t.previsao || t.venc) < hoje) ? '<span class="tag bloq">atrasado</span>' : ""}<br><small>Nº ${esc(t.numero)} ${esc(t.parcela)}</small></span><b class="num">${brl(t.aberto)}</b></label>`).join("")}</div>`;
+    tits.querySelectorAll("input").forEach(i => i.onchange = () => { i.checked ? sel.marcados.add(i.dataset.t) : sel.marcados.delete(i.dataset.t); atualizar(); });
+    atualizar();
+  }
+  function atualizar() {
+    const v = valorFn();
+    const escolhidos = sel.titulos.filter(t => sel.marcados.has(t.titulo));
+    let resta = r2(v); const linhas = [];
+    escolhidos.forEach(t => { if (resta <= 0) { linhas.push(`Nº ${esc(t.numero)} ${esc(t.parcela)}: <b>não recebe nada</b> (desmarque)`); return; } const b = Math.min(Number(t.aberto), resta); resta = r2(resta - b); linhas.push(`Nº ${esc(t.numero)} ${esc(t.parcela)} (venc. ${dataBr(t.venc)}): ${brl(b)}${b < Number(t.aberto) ? ` <b>parcial</b>, fica ${brl(Number(t.aberto) - b)} em aberto` : " quitado"}`); });
+    if (resta > 0 && escolhidos.length) linhas.push(`Sobra ${brl(resta)}: entra como <b>juros</b> no último título`);
+    $('[data-r="res2"]', raiz).innerHTML = escolhidos.length && v > 0 ? `<div class="resumo"><b>Como fica a baixa de ${brl(v)}</b><br>${linhas.join("<br>")}</div>` : "";
+    onMuda && onMuda({ codigo: sel.codigo, titulos: escolhidos.map(t => t.titulo) });
+  }
+  if (inicial) escolher(inicial);
+  return { atualizar };
+}
+
+/** Reduz fotos para no máximo 1800 px (JPEG) e devolve base64. PDF vai como está. */
+function lerArquivo(arq) {
+  return new Promise((ok, falha) => {
+    if (arq.size > 15 * 1024 * 1024) return falha(new Error("Arquivo grande demais (máximo 15 MB)."));
+    const fr = new FileReader();
+    fr.onerror = () => falha(new Error("Não consegui ler o arquivo."));
+    if (!/^image\//.test(arq.type)) { fr.onload = () => ok({ base64: fr.result.split(",")[1], mime: arq.type || "application/pdf", nome: arq.name, url: "" }); fr.readAsDataURL(arq); return; }
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, 1800 / Math.max(img.width, img.height));
+        const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        const url = c.toDataURL("image/jpeg", 0.88);
+        ok({ base64: url.split(",")[1], mime: "image/jpeg", nome: arq.name.replace(/\.\w+$/, "") + ".jpg", url });
+      };
+      img.onerror = () => falha(new Error("Não consegui abrir a imagem."));
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(arq);
+  });
+}
+
+/* ---------------- comprovante ---------------- */
+function telaComprovante() {
+  const t = $("#tela");
+  t.innerHTML = `<div class="cartao"><h2>Enviar comprovante de Pix</h2>${campoQuem()}
+    <label class="arquivo" style="margin-top:14px"><input type="file" id="arq" accept="image/*,application/pdf"><b>Toque para escolher a foto ou o PDF</b><span class="vazio">Print do comprovante que o cliente mandou</span></label>
+    <div id="passo"></div></div>`;
+  ligarQuem(t);
+  $("#arq").onchange = async e => {
+    const arq = e.target.files[0]; if (!arq) return;
+    const passo = $("#passo");
+    if (!st.quem) { passo.innerHTML = `<div class="aviso erro">Escolha primeiro quem está enviando.</div>`; e.target.value = ""; return; }
+    passo.innerHTML = `<div class="carregando">Lendo o comprovante… (uns 10 segundos)</div>`;
+    try {
+      const f = await lerArquivo(arq);
+      const r = await api("lerComprovante", { arquivo: f.base64, mime: f.mime, nome: f.nome, quem: st.quem });
+      formComprovante(passo, r, f.url);
+    } catch (x) { erroNa(passo, x); }
+    e.target.value = "";
+  };
+}
+function formComprovante(el, r, url) {
+  const l = r.lido;
+  el.innerHTML = `${url ? `<img class="thumb" src="${url}" alt="Comprovante">` : ""}
+    ${r.duplicado ? `<div class="aviso erro"><b>Este Pix já foi enviado</b> em ${esc(r.duplicado.quando)} por ${esc(r.duplicado.quem)} (${esc(r.duplicado.cliente)}, ${brl(r.duplicado.valor)}). Não dê baixa de novo.</div>` : ""}
+    ${l.recebedor !== "valor" ? `<div class="aviso alerta">Não encontrei "Valor Assessoria" como recebedor neste comprovante. Confira se o Pix foi mesmo para a Valor.</div>` : ""}
+    <h3>Confira o que li</h3>
+    <div class="linha2"><div><label for="cv">Valor pago</label><input type="text" id="cv" inputmode="decimal" value="${l.valor ? String(l.valor.toFixed(2)).replace(".", ",") : ""}"></div>
+    <div><label for="cd">Data do Pix</label><input type="date" id="cd" value="${esc(l.data || hojeIso())}"></div></div>
+    <label for="cp">Quem pagou</label><input type="text" id="cp" value="${esc(l.pagador)}">
+    <div class="linha2"><div><label for="ce">ID do Pix (E2E)</label><input type="text" id="ce" value="${esc(l.e2e)}"></div><div><label for="cc">Conta que recebeu</label>${campoConta("cc")}</div></div>
+    <details><summary>Ver o texto lido do comprovante</summary><pre>${esc(r.textoLido)}</pre></details>
+    <div id="cli" style="clear:both"></div>
+    <div class="acoes"><button class="btn" id="baixar" disabled>${st.eu.modoTeste ? "Simular baixa (modo teste)" : "Dar baixa no Omie"}</button></div><div id="fim"></div>`;
+  let escolha = { codigo: "", titulos: [] };
+  const valor = () => numBr($("#cv").value);
+  const sc = seletorCliente($("#cli"), { sugestoes: r.sugestoes, valorFn: valor, inicial: r.sugestoes && r.sugestoes[0] && r.sugestoes[0].pontos >= 85 ? r.sugestoes[0].codigo : "", onMuda: s => { escolha = s; $("#baixar").disabled = !(s.codigo && s.titulos.length && valor() > 0); } });
+  $("#cv").oninput = () => sc.atualizar();
+  $("#baixar").onclick = async () => {
+    const b = $("#baixar"); b.disabled = true; b.textContent = "Baixando…";
+    try {
+      const res = await api("baixarComprovante", { id: r.id, valor: valor(), data: $("#cd").value, pagador: $("#cp").value, e2e: $("#ce").value.trim(), conta: $("#cc").value, codigoCliente: escolha.codigo, titulos: escolha.titulos });
+      st.clientes = null;
+      el.innerHTML = resultadoBaixa(res) + `<div class="acoes"><button class="btn claro" onclick="telaComprovante()">Enviar outro comprovante</button></div>`;
+    } catch (x) { $("#fim").innerHTML = `<div class="aviso erro">${esc(x.message)}</div>`; b.disabled = false; b.textContent = "Tentar de novo"; }
+  };
+}
+function resultadoBaixa(res) {
+  const teste = res.modo === "teste";
+  return `<div class="aviso ${teste ? "info" : "ok"}"><b>${teste ? "Modo teste: nada foi baixado no Omie." : "Baixa feita no Omie."}</b> ${teste ? "Isto é o que seria feito:" : "Fica pendente de conciliação para o Victor ou a Lays."}</div>
+    <table><tr><th>Título</th><th class="v">Baixa</th><th class="v">Juros</th></tr>${res.baixas.map(b => `<tr><td>${esc(b.titulo)}<br><small class="vazio">venc. ${dataBr(b.venc)}${b.parcial ? " · parcial" : ""}</small>${b.erro ? `<div class="aviso erro">${esc(b.erro)}</div>` : ""}</td><td class="v">${brl(b.valor)}</td><td class="v">${b.juros ? brl(b.juros) : ""}</td></tr>`).join("")}</table>
+    ${teste ? "" : `<p class="vazio">O cliente sai da lista de bloqueados do Painel da Sala na próxima leitura do Omie (até 10 minutos).</p>`}`;
+}
+
+/* ---------------- aviso ---------------- */
+function telaAviso() {
+  const t = $("#tela");
+  t.innerHTML = `<div class="cartao"><h2>Cliente avisou que pagou, sem comprovante</h2>
+    <p class="vazio">O aviso vai para o Victor e a Lays conferirem no banco. A baixa só acontece depois que um deles confirmar o crédito.</p>
+    ${campoQuem()}<div id="cli"></div>
+    <label for="av">Valor (se o cliente disse)</label><input type="text" id="av" inputmode="decimal" placeholder="Deixe em branco se não sabe">
+    <label for="ao">Observação</label><textarea id="ao" placeholder="Ex.: avisou pelo WhatsApp às 15h que pagou o boleto de outubro"></textarea>
+    <div class="acoes"><button class="btn" id="env" disabled>Enviar aviso</button></div><div id="fim"></div></div>`;
+  ligarQuem(t);
+  let codigo = "";
+  seletorCliente($("#cli"), { valorFn: () => numBr($("#av") && $("#av").value), onMuda: s => { codigo = s.codigo; $("#env").disabled = !codigo; } });
+  $("#env").onclick = async () => {
+    if (!st.quem) { $("#fim").innerHTML = `<div class="aviso erro">Escolha quem está enviando.</div>`; return; }
+    $("#env").disabled = true;
+    try {
+      await api("registrarAviso", { quem: st.quem, codigoCliente: codigo, valor: numBr($("#av").value) || "", obs: $("#ao").value });
+      t.innerHTML = `<div class="cartao"><div class="aviso ok"><b>Aviso enviado.</b> O Victor ou a Lays vão conferir o crédito no banco.</div><div class="acoes"><button class="btn claro" onclick="telaAviso()">Novo aviso</button></div></div>`;
+    } catch (x) { $("#fim").innerHTML = `<div class="aviso erro">${esc(x.message)}</div>`; $("#env").disabled = false; }
+  };
+}
+
+/* ---------------- pendências ---------------- */
+async function telaPendencias() {
+  const t = $("#tela");
+  t.innerHTML = `<div class="carregando">Carregando pendências…</div>`;
+  let p; try { p = await api("pendencias"); } catch (e) { return erroNa(t, e); }
+  const comp = p.comprovantes;
+  t.innerHTML = `<div class="cartao"><h2>Avisos aguardando conferência no banco (${p.avisos.length})</h2>
+    ${p.avisos.length ? p.avisos.map(a => `<div class="item" data-av="${a.id}"><div class="topo"><b>${esc(a.cliente)}</b><span class="num">${a.valor ? brl(a.valor) : "valor não informado"}</span></div>
+      <small class="vazio">${esc(a.criado_em)} · enviado por ${esc(a.quem)}</small>${a.obs ? `<p>${esc(a.obs)}</p>` : ""}
+      <div class="acoes"><button class="btn pequeno" data-ok>Confirmei o crédito</button><button class="btn borda pequeno" data-x>Encerrar sem baixa</button></div><div data-form></div></div>`).join("") : `<p class="vazio">Nenhum aviso pendente.</p>`}</div>
+    <div class="cartao"><h2>Comprovantes aguardando o extrato (${comp.length})</h2>
+    <p class="vazio">Baixados por comprovante e ainda não encontrados no extrato. Extrato importado até: <b>${p.extratoAte ? dataBr(p.extratoAte) : "nenhum ainda"}</b>.</p>
+    ${comp.length ? `<table><tr><th>Cliente</th><th>Pix</th><th class="v">Valor</th><th></th></tr>${comp.map(c => `<tr data-cp="${c.id}"><td>${esc(c.cliente)}<br><small class="vazio">por ${esc(c.quem)}${c.status === "alerta" ? ' · <span class="tag bloq">NÃO ENTROU</span>' : c.status === "simulado" ? ' · teste' : ""}</small></td><td>${dataBr(c.data_pix)}${c.arquivo ? `<br><a href="${c.arquivo}" target="_blank" rel="noopener">ver</a>` : ""}</td><td class="v">${brl(c.valor)}</td><td><button class="btn borda pequeno" data-conf>Conferido</button> <button class="btn borda pequeno" data-desc>Descartar</button></td></tr>`).join("")}</table>` : `<p class="vazio">Nenhum.</p>`}</div>`;
+  t.querySelectorAll("[data-av]").forEach(div => {
+    const id = div.dataset.av, a = p.avisos.find(x => x.id === id);
+    $("[data-x]", div).onclick = async () => { const m = prompt("Motivo (ex.: pagou em dinheiro e a Lays lançou à parte):"); if (m === null) return; try { await api("encerrarAviso", { id, motivo: m }); telaPendencias(); } catch (e) { alert(e.message); } };
+    $("[data-ok]", div).onclick = () => {
+      const f = $("[data-form]", div);
+      f.innerHTML = `<div class="linha2"><div><label>Valor que entrou</label><input type="text" data-v inputmode="decimal" value="${a.valor ? String(Number(a.valor).toFixed(2)).replace(".", ",") : ""}"></div><div><label>Data do crédito</label><input type="date" data-d value="${hojeIso()}"></div></div>
+        <label>Conta</label>${campoConta("cc-" + id)}<div data-cli></div><div class="acoes"><button class="btn" data-b disabled>${st.eu.modoTeste ? "Simular baixa" : "Dar baixa no Omie"}</button></div><div data-fim></div>`;
+      let esc2 = { titulos: [] };
+      const val = () => numBr($("[data-v]", f).value);
+      const sc = seletorCliente($("[data-cli]", f), { valorFn: val, inicial: a.codigo_cliente, onMuda: s => { esc2 = s; $("[data-b]", f).disabled = !(s.titulos.length && val() > 0); } });
+      $("[data-v]", f).oninput = () => sc.atualizar();
+      $("[data-b]", f).onclick = async () => {
+        $("[data-b]", f).disabled = true;
+        try { const res = await api("confirmarAviso", { id, valor: val(), data: $("[data-d]", f).value, conta: $("#cc-" + id).value, titulos: esc2.titulos }); f.innerHTML = resultadoBaixa(res); st.clientes = null; }
+        catch (e) { $("[data-fim]", f).innerHTML = `<div class="aviso erro">${esc(e.message)}</div>`; $("[data-b]", f).disabled = false; }
+      };
+    };
+  });
+  t.querySelectorAll("[data-cp]").forEach(tr => {
+    const id = tr.dataset.cp;
+    $("[data-conf]", tr).onclick = async () => { try { await api("encerrarComprovante", { id }); telaPendencias(); } catch (e) { alert(e.message); } };
+    $("[data-desc]", tr).onclick = async () => { if (!confirm("Descartar este comprovante? Se a baixa já foi feita no Omie, estorne lá.")) return; try { await api("encerrarComprovante", { id, descartar: true }); telaPendencias(); } catch (e) { alert(e.message); } };
+  });
+}
+
+/* ---------------- extrato ---------------- */
+async function telaExtrato(msg) {
+  const t = $("#tela");
+  t.innerHTML = `<div class="cartao"><h2>Importar extrato (OFX)</h2>
+    <label class="arquivo"><input type="file" id="ofx" accept=".ofx,.OFX,application/x-ofx,text/plain"><b>Toque para escolher o arquivo .ofx</b><span class="vazio">Cora ou Itaú. Pode repetir dias: o que já foi importado é ignorado.</span></label>
+    <div id="imp">${msg || ""}</div></div><div id="lista"><div class="carregando">Carregando…</div></div>`;
+  $("#ofx").onchange = async e => {
+    const arq = e.target.files[0]; if (!arq) return;
+    const imp = $("#imp"); imp.innerHTML = `<div class="carregando">Lendo o extrato e comparando com o Omie…</div>`;
+    try {
+      const texto = await arq.text();
+      const r = await api("importarOfx", { texto, nome: arq.name });
+      const z = r.resumo || {};
+      telaExtrato(`<div class="aviso ok"><b>${r.novos} crédito(s) novo(s)</b> de ${dataBr(r.de)} a ${dataBr(r.ate)} · conta ${esc(r.conta)}.<br>
+        ${z.comprovante || 0} já baixado(s) por comprovante · ${z.ja_no_omie || 0} já lançado(s) no Omie · ${z.pendentes || 0} para você decidir.</div>`);
+    } catch (x) { erroNa(imp, x); }
+  };
+  let d; try { d = await api("extrato"); } catch (e) { return erroNa($("#lista"), e); }
+  const nivel = { certeza: '<span class="tag cert">CERTEZA</span>', provavel: '<span class="tag prov">PROVÁVEL</span>', sem_dono: '<span class="tag sem">SEM DONO</span>' };
+  $("#lista").innerHTML = `<div class="cartao"><h2>Créditos para decidir (${d.pendentes.length})</h2>
+    ${d.pendentes.length ? d.pendentes.map(l => `<div class="item" data-l="${esc(l.id)}"><div class="topo"><b class="num">${brl(l.valor)}</b><span>${nivel[l.nivel] || ""} ${dataBr(l.data)}</span></div>
+      <div>${esc(l.nome)} <small class="vazio">${esc(l.memo)}</small></div><div data-cli></div>
+      <div class="acoes"><button class="btn pequeno" data-b disabled>${st.eu.modoTeste ? "Simular baixa" : "Baixar"}</button><button class="btn borda pequeno" data-omie>Já baixado no Omie</button><button class="btn borda pequeno" data-ign>Não é cliente</button></div><div data-fim></div></div>`).join("") : `<p class="vazio">Nada pendente.</p>`}</div>
+    <div class="cartao"><h2>Últimos resolvidos</h2>${d.recentes.length ? `<table><tr><th>Data</th><th>Lançamento</th><th class="v">Valor</th><th>Situação</th></tr>${d.recentes.map(r => `<tr><td>${dataBr(r.data)}</td><td>${esc(r.nome)}${r.cliente ? `<br><small class="vazio">${esc(r.cliente)}</small>` : ""}</td><td class="v">${brl(r.valor)}</td><td>${esc({ comprovante: "Comprovante", ja_no_omie: "Já no Omie", baixado: "Baixado", simulado: "Teste", ignorado: "Ignorado" }[r.status] || r.status)}</td></tr>`).join("")}</table>` : `<p class="vazio">Nenhum ainda.</p>`}</div>`;
+  $("#lista").querySelectorAll("[data-l]").forEach(div => {
+    const l = d.pendentes.find(x => x.id === div.dataset.l);
+    let esc2 = { codigo: "", titulos: [] };
+    seletorCliente($("[data-cli]", div), { sugestoes: l.clientes, valorFn: () => l.valor, inicial: l.nivel === "certeza" && l.clientes[0] ? l.clientes[0].codigo : "", onMuda: s => { esc2 = s; $("[data-b]", div).disabled = !(s.codigo && s.titulos.length); } });
+    $("[data-b]", div).onclick = async () => {
+      $("[data-b]", div).disabled = true;
+      try { const res = await api("baixarExtrato", { id: l.id, codigoCliente: esc2.codigo, titulos: esc2.titulos }); div.innerHTML = `<div class="topo"><b class="num">${brl(l.valor)}</b><span>${dataBr(l.data)}</span></div>` + resultadoBaixa(res); st.clientes = null; }
+      catch (e) { $("[data-fim]", div).innerHTML = `<div class="aviso erro">${esc(e.message)}</div>`; $("[data-b]", div).disabled = false; }
+    };
+    const marcar = status => async () => { try { await api("marcarExtrato", { id: l.id, status }); div.remove(); } catch (e) { alert(e.message); } };
+    $("[data-omie]", div).onclick = marcar("ja_no_omie");
+    $("[data-ign]", div).onclick = marcar("ignorado");
+  });
+}
+
+/* ---------------- gestão ---------------- */
+async function telaGestao() {
+  const t = $("#tela");
+  t.innerHTML = `<div class="carregando">Carregando…</div>`;
+  let g; try { g = await api("gestao"); } catch (e) { return erroNa(t, e); }
+  const max = Math.max(1, ...g.dias.map(d => d.valor));
+  const origem = { comprovante: "Comprovantes de Pix", extrato: "Extrato OFX", aviso: "Avisos confirmados" };
+  t.innerHTML = `${g.modo === "teste" ? `<div class="aviso info">Ainda não há baixas reais: os números abaixo são das simulações do modo teste.</div>` : ""}
+    <div class="kpis"><div class="kpi"><span>Baixado hoje</span><b>${brl(g.hoje)}</b></div><div class="kpi"><span>Últimos 7 dias</span><b>${brl(g.semana)}</b></div><div class="kpi"><span>No mês</span><b>${brl(g.mes)}</b></div>
+    <div class="kpi claro"><span>Clientes bloqueados</span><b>${g.bloqueados.length}</b></div><div class="kpi claro"><span>Valor bloqueado</span><b>${brl(g.totalBloqueado)}</b></div><div class="kpi claro"><span>Total em atraso</span><b>${brl(g.totalAtrasado)}</b></div></div>
+    ${g.alertas.length ? `<div class="cartao"><h2>Pix sem crédito no extrato (${g.alertas.length})</h2><table>${g.alertas.map(a => `<tr><td>${esc(a.cliente)}<br><small class="vazio">Pix de ${dataBr(a.data_pix)} · por ${esc(a.quem)}</small></td><td class="v">${brl(a.valor)}</td></tr>`).join("")}</table></div>` : ""}
+    <div class="cartao"><h2>Baixas por dia (30 dias)</h2><div class="barras">${g.dias.map((d, i) => `<i class="${i === g.dias.length - 1 ? "hoje" : ""}" style="height:${(d.valor / max * 100).toFixed(1)}%" title="${dataBr(d.dia)}: ${brl(d.valor)}"></i>`).join("")}</div>
+      <div style="display:flex;justify-content:space-between" class="vazio"><small>${dataBr(g.dias[0].dia)}</small><small>hoje</small></div></div>
+    <div class="cartao"><h2>Pendências</h2><table><tr><td>Comprovantes aguardando o extrato</td><td class="v">${g.aguardandoExtrato}</td></tr><tr><td>Avisos aguardando conferência no banco</td><td class="v">${g.avisos}</td></tr><tr><td>Créditos do extrato para decidir</td><td class="v">${g.extratoPendentes}</td></tr><tr><td>Extrato importado até</td><td class="v">${g.extratoAte ? dataBr(g.extratoAte) : "—"}</td></tr></table></div>
+    <div class="cartao"><h2>No mês, por origem</h2>${Object.keys(g.porOrigem).length ? `<table>${Object.keys(g.porOrigem).map(k => `<tr><td>${esc(origem[k] || k)}</td><td class="v">${brl(g.porOrigem[k])}</td></tr>`).join("")}</table>` : `<p class="vazio">Nada ainda.</p>`}
+      <h3>Comprovantes enviados no mês, por pessoa</h3>${Object.keys(g.porPessoa).length ? `<table>${Object.keys(g.porPessoa).sort((a, b) => g.porPessoa[b] - g.porPessoa[a]).map(k => `<tr><td>${esc(k)}</td><td class="v">${g.porPessoa[k]}</td></tr>`).join("")}</table>` : `<p class="vazio">Nenhum ainda.</p>`}</div>
+    <div class="cartao"><h2>Clientes bloqueados (2 ou mais meses em atraso)</h2>${g.bloqueados.length ? `<table><tr><th>Cliente</th><th class="v">Meses</th><th class="v">Em atraso</th></tr>${g.bloqueados.sort((a, b) => b.atrasado - a.atrasado).map(b => `<tr><td>${esc(b.nome)}</td><td class="v">${b.meses}</td><td class="v">${brl(b.atrasado)}</td></tr>`).join("")}</table>` : `<p class="vazio">Nenhum.</p>`}</div>
+    <div class="cartao"><h2>Últimas baixas</h2>${g.ultimas.length ? `<table><tr><th>Data</th><th>Cliente</th><th class="v">Valor</th></tr>${g.ultimas.map(b => `<tr><td>${dataBr(b.data)}</td><td>${esc(b.cliente)}<br><small class="vazio">${esc(origem[b.origem] || b.origem)} · ${esc(b.por)}${b.modo === "teste" ? " · teste" : ""}</small></td><td class="v">${brl(b.valor)}</td></tr>`).join("")}</table>` : `<p class="vazio">Nenhuma ainda.</p>`}</div>`;
+}
+
+/* ---------------- equipe ---------------- */
+async function telaEquipe(dados) {
+  const t = $("#tela");
+  if (!dados) { t.innerHTML = `<div class="carregando">Carregando…</div>`; try { dados = await api("equipe"); } catch (e) { return erroNa(t, e); } }
+  const perfis = { admin: "Administrador (tudo)", gestao: "Gestão (painel + comprovante)", equipe: "Equipe (só comprovante e aviso)" };
+  t.innerHTML = `<div class="cartao"><h2>Quem envia</h2><p class="vazio">Nomes que aparecem em "Quem está enviando". Desativar esconde a pessoa da lista, mas o histórico continua.</p>
+    <table>${dados.pessoas.map(p => `<tr><td>${esc(p.nome)}</td><td class="v"><label class="sw"><input type="checkbox" data-p="${esc(p.nome)}" ${p.ativo === "sim" ? "checked" : ""}> ativo</label></td></tr>`).join("")}</table>
+    <div class="linha2" style="margin-top:10px"><input type="text" id="np" placeholder="Nome da nova pessoa"><button class="btn" id="addp">Incluir</button></div></div>
+    <div class="cartao"><h2>Contas Google com acesso</h2>
+    <table>${dados.acessos.map(a => `<tr><td>${esc(a.email)}</td><td><select data-ap="${esc(a.email)}">${Object.keys(perfis).map(k => `<option value="${k}" ${k === a.perfil ? "selected" : ""}>${perfis[k]}</option>`).join("")}</select></td><td class="v"><label class="sw"><input type="checkbox" data-aa="${esc(a.email)}" ${a.ativo === "sim" ? "checked" : ""}> ativo</label></td></tr>`).join("")}</table>
+    <label for="ne">Nova conta</label><div class="linha2"><input type="email" id="ne" placeholder="email@gmail.com"><select id="npf">${Object.keys(perfis).map(k => `<option value="${k}" ${k === "equipe" ? "selected" : ""}>${perfis[k]}</option>`).join("")}</select></div>
+    <div class="acoes"><button class="btn" id="adda">Incluir conta</button></div>
+    <p class="vazio">A conta nova também precisa estar em "Usuários de teste" no Google Cloud (Google Auth Platform → Público-alvo), senão o Google não deixa entrar.</p></div>
+    <div class="cartao"><h2>Modo teste</h2><p>${dados.modoTeste ? "<b>Ligado:</b> nada é baixado no Omie; o sistema só mostra o que faria." : "<b>Desligado:</b> as baixas vão de verdade para o Omie."}</p>
+    <div class="acoes"><button class="btn ${dados.modoTeste ? "" : "claro"}" id="mt">${dados.modoTeste ? "Desligar modo teste (baixar de verdade)" : "Voltar para o modo teste"}</button></div></div>`;
+  const salvar = async (acao, d) => { try { const r = await api(acao, d); telaEquipe(r); } catch (e) { alert(e.message); telaEquipe(); } };
+  t.querySelectorAll("[data-p]").forEach(i => i.onchange = () => salvar("salvarPessoa", { nome: i.dataset.p, ativo: i.checked }));
+  $("#addp").onclick = () => { const n = $("#np").value.trim(); if (n) salvar("salvarPessoa", { nome: n, ativo: true }); };
+  t.querySelectorAll("[data-ap]").forEach(s => s.onchange = () => salvar("salvarAcesso", { email: s.dataset.ap, perfil: s.value, ativo: $(`[data-aa="${s.dataset.ap}"]`).checked }));
+  t.querySelectorAll("[data-aa]").forEach(i => i.onchange = () => salvar("salvarAcesso", { email: i.dataset.aa, perfil: $(`[data-ap="${i.dataset.aa}"]`).value, ativo: i.checked }));
+  $("#adda").onclick = () => salvar("salvarAcesso", { email: $("#ne").value, perfil: $("#npf").value, ativo: true });
+  $("#mt").onclick = async () => {
+    if (dados.modoTeste && !confirm("Desligar o modo teste? A partir de agora as baixas vão de verdade para o Omie.")) return;
+    await salvar("modoTeste", { ligado: !dados.modoTeste });
+    st.eu.modoTeste = !dados.modoTeste;
+    moldura();
+  };
+}
+
+carregar();
+</script>
+</body>
+</html>
