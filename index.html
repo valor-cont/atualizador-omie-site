@@ -360,7 +360,7 @@ function telaAviso() {
   t.querySelectorAll("#forma .chip").forEach(b => b.onclick = () => {
     forma = b.dataset.f;
     t.querySelectorAll("#forma .chip").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
-    $("#dica").innerHTML = forma === "Dinheiro" ? `<div class="aviso alerta">Entregue o dinheiro ao Victor ou à Lays. A baixa entra na conta <b>Adiantamento ao Sócio</b>.</div>` : "";
+    $("#dica").innerHTML = forma === "Dinheiro" ? `<div class="aviso info">Pagamento em dinheiro: por gentileza, repasse o valor ao Victor ou à Lays. Eles confirmam o recebimento e fazem a baixa.</div>` : "";
     pronto();
   });
   $("#env").onclick = async () => {
