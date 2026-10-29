@@ -192,7 +192,7 @@ async function obterClientes(recarregar) {
  * Seletor de cliente + títulos. Chama onPronto({codigo, titulos}) sempre que a escolha muda.
  * sugestoes: [{codigo,nome,motivos}] do servidor. valorFn: devolve o valor pago atual.
  */
-function seletorCliente(raiz, { sugestoes, valorFn, inicial, onMuda }) {
+function seletorCliente(raiz, { sugestoes, valorFn, inicial, onMuda, marcados, preMarcar = true, tituloLista, semResumo }) {
   const sel = { codigo: "", nome: "", titulos: [], marcados: new Set() };
   raiz.innerHTML = `${sugestoes && sugestoes.length ? `<label>Sugestões</label><div class="chips" data-r="sug">${sugestoes.map(s => `<button type="button" class="chip" data-c="${s.codigo}" aria-pressed="false">${esc(s.nome)}<small>${esc((s.motivos || []).join(" · "))}</small></button>`).join("")}</div>` : ""}
     <label for="busca">Cliente</label><input type="text" id="busca" placeholder="Digite parte do nome ou do CNPJ/CPF" autocomplete="off">
@@ -224,15 +224,16 @@ function seletorCliente(raiz, { sugestoes, valorFn, inicial, onMuda }) {
     tits.innerHTML = `<div class="carregando">Buscando títulos em aberto no Omie…</div>`;
     try { sel.titulos = await api("titulosCliente", { codigo }); } catch (e) { return erroNa(tits, e); }
     sel.marcados = new Set();
-    let soma = 0; const v = valorFn();
-    sel.titulos.forEach(t => { if (soma < v - 0.009) { sel.marcados.add(t.titulo); soma += Number(t.aberto); } });
+    if (marcados && marcados.length) sel.titulos.forEach(t => { if (marcados.indexOf(t.titulo) >= 0) sel.marcados.add(t.titulo); });
+    else if (preMarcar) { let soma = 0; const v = valorFn(); sel.titulos.forEach(t => { if (soma < v - 0.009) { sel.marcados.add(t.titulo); soma += Number(t.aberto); } }); }
     desenharTitulos();
   }
   function desenharTitulos() {
     const tits = $('[data-r="tits"]', raiz);
     if (!sel.titulos.length) { tits.innerHTML = `<div class="aviso alerta">Este cliente não tem títulos em aberto no Omie.</div>`; atualizar(); return; }
     const hoje = hojeIso();
-    tits.innerHTML = `<h3>Títulos em aberto (mais antigos primeiro)</h3><div class="tit-lista">${sel.titulos.map(t => `<label class="tit"><input type="checkbox" data-t="${t.titulo}" ${sel.marcados.has(t.titulo) ? "checked" : ""}>
+    const atras = sel.titulos.filter(t => (t.previsao || t.venc) < hoje).reduce((a, t) => a + Number(t.aberto), 0);
+    tits.innerHTML = `<h3>${tituloLista || "Títulos em aberto (mais antigos primeiro)"}</h3>${atras ? `<p class="vazio" style="margin:0">Em atraso: <b>${brl(atras)}</b></p>` : ""}<div class="tit-lista">${sel.titulos.map(t => `<label class="tit"><input type="checkbox" data-t="${t.titulo}" ${sel.marcados.has(t.titulo) ? "checked" : ""}>
       <span>Venc. ${dataBr(t.venc)} ${((t.previsao || t.venc) < hoje) ? '<span class="tag bloq">atrasado</span>' : ""}<br><small>Nº ${esc(t.numero)} ${esc(t.parcela)}</small></span><b class="num">${brl(t.aberto)}</b></label>`).join("")}</div>`;
     tits.querySelectorAll("input").forEach(i => i.onchange = () => { i.checked ? sel.marcados.add(i.dataset.t) : sel.marcados.delete(i.dataset.t); atualizar(); });
     atualizar();
@@ -243,7 +244,7 @@ function seletorCliente(raiz, { sugestoes, valorFn, inicial, onMuda }) {
     let resta = r2(v); const linhas = [];
     escolhidos.forEach(t => { if (resta <= 0) { linhas.push(`Nº ${esc(t.numero)} ${esc(t.parcela)}: <b>não recebe nada</b> (desmarque)`); return; } const b = Math.min(Number(t.aberto), resta); resta = r2(resta - b); linhas.push(`Nº ${esc(t.numero)} ${esc(t.parcela)} (venc. ${dataBr(t.venc)}): ${brl(b)}${b < Number(t.aberto) ? ` <b>parcial</b>, fica ${brl(Number(t.aberto) - b)} em aberto` : " quitado"}`); });
     if (resta > 0 && escolhidos.length) linhas.push(`Sobra ${brl(resta)}: entra como <b>juros</b> no último título`);
-    $('[data-r="res2"]', raiz).innerHTML = escolhidos.length && v > 0 ? `<div class="resumo"><b>Como fica a baixa de ${brl(v)}</b><br>${linhas.join("<br>")}</div>` : "";
+    $('[data-r="res2"]', raiz).innerHTML = !semResumo && escolhidos.length && v > 0 ? `<div class="resumo"><b>Como fica a baixa de ${brl(v)}</b><br>${linhas.join("<br>")}</div>` : "";
     onMuda && onMuda({ codigo: sel.codigo, titulos: escolhidos.map(t => t.titulo) });
   }
   if (inicial) escolher(inicial);
@@ -334,24 +335,41 @@ function resultadoBaixa(res) {
 }
 
 /* ---------------- aviso ---------------- */
+const FORMAS = ["Pix", "Boleto", "Transferência (TED)", "Dinheiro", "Não sei"];
 function telaAviso() {
   const t = $("#tela");
-  t.innerHTML = `<div class="cartao"><h2>Cliente avisou que pagou, sem comprovante</h2>
-    <p class="vazio">O aviso vai para o Victor e a Lays conferirem no banco. A baixa só acontece depois que um deles confirmar o crédito.</p>
-    ${campoQuem()}<div id="cli"></div>
-    <label for="av">Valor (se o cliente disse)</label><input type="text" id="av" inputmode="decimal" placeholder="Deixe em branco se não sabe">
-    <label for="ao">Observação</label><textarea id="ao" placeholder="Ex.: avisou pelo WhatsApp às 15h que pagou o boleto de outubro"></textarea>
-    <div class="acoes"><button class="btn" id="env" disabled>Enviar aviso</button></div><div id="fim"></div></div>`;
+  t.innerHTML = `<div class="cartao"><h2>Cliente disse que pagou, mas não mandou comprovante</h2>
+    <div class="aviso info"><b>Quando usar:</b> o cliente avisou (WhatsApp, ligação, pessoalmente) que pagou, mas não mandou o comprovante, ou pagou em dinheiro.<br>
+    <b>O que acontece:</b> 1) o aviso vai para a aba <b>Pendências</b> do Victor e da Lays; 2) eles conferem se o dinheiro entrou no banco (ou recebem o dinheiro em mãos); 3) confirmam e dão a baixa no Omie; 4) o cliente sai da lista de bloqueados.<br>
+    <b>Nada é baixado agora.</b> Se você tem o comprovante, use a aba <b>Comprovante Pix</b>.</div>
+    <h3>1. Quem está registrando</h3>${campoQuem()}
+    <h3>2. Qual cliente</h3><div id="cli"></div>
+    <h3>3. O que o cliente informou</h3>
+    <label>Como pagou</label><div class="chips" id="forma">${FORMAS.map(f => `<button type="button" class="chip" data-f="${f}" aria-pressed="false">${f}</button>`).join("")}</div>
+    <div id="dica"></div>
+    <div class="linha2"><div><label for="av">Valor que ele disse que pagou</label><input type="text" id="av" inputmode="decimal" placeholder="Em branco se não sabe"></div>
+    <div><label for="ad">Quando ele disse que pagou</label><input type="date" id="ad" value="${hojeIso()}"></div></div>
+    <label for="ao">Observação</label><textarea id="ao" placeholder="Ex.: avisou pelo WhatsApp às 15h que pagou os honorários de setembro e outubro"></textarea>
+    <div class="acoes"><button class="btn" id="env" disabled>Enviar para conferência</button></div><div id="fim"></div></div>`;
   ligarQuem(t);
-  let codigo = "";
-  seletorCliente($("#cli"), { valorFn: () => numBr($("#av") && $("#av").value), onMuda: s => { codigo = s.codigo; $("#env").disabled = !codigo; } });
+  let escolha = { codigo: "", titulos: [] }, forma = "";
+  const pronto = () => { $("#env").disabled = !(escolha.codigo && forma); };
+  seletorCliente($("#cli"), { valorFn: () => numBr($("#av") && $("#av").value), preMarcar: false, semResumo: true,
+    tituloLista: "A que o pagamento se refere? <small class=\"vazio\">(opcional: marque se o cliente disse quais meses pagou)</small>",
+    onMuda: s => { escolha = s; pronto(); } });
+  t.querySelectorAll("#forma .chip").forEach(b => b.onclick = () => {
+    forma = b.dataset.f;
+    t.querySelectorAll("#forma .chip").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    $("#dica").innerHTML = forma === "Dinheiro" ? `<div class="aviso alerta">Entregue o dinheiro ao Victor ou à Lays. A baixa entra na conta <b>Adiantamento ao Sócio</b>.</div>` : "";
+    pronto();
+  });
   $("#env").onclick = async () => {
-    if (!st.quem) { $("#fim").innerHTML = `<div class="aviso erro">Escolha quem está enviando.</div>`; return; }
+    if (!st.quem) { $("#fim").innerHTML = `<div class="aviso erro">Escolha quem está registrando (passo 1).</div>`; return; }
     $("#env").disabled = true;
     try {
-      await api("registrarAviso", { quem: st.quem, codigoCliente: codigo, valor: numBr($("#av").value) || "", obs: $("#ao").value });
-      t.innerHTML = `<div class="cartao"><div class="aviso ok"><b>Aviso enviado.</b> O Victor ou a Lays vão conferir o crédito no banco.</div><div class="acoes"><button class="btn claro" onclick="telaAviso()">Novo aviso</button></div></div>`;
-    } catch (x) { $("#fim").innerHTML = `<div class="aviso erro">${esc(x.message)}</div>`; $("#env").disabled = false; }
+      await api("registrarAviso", { quem: st.quem, codigoCliente: escolha.codigo, valor: numBr($("#av").value) || "", obs: $("#ao").value, forma, dataInformada: $("#ad").value, titulos: escolha.titulos });
+      t.innerHTML = `<div class="cartao"><div class="aviso ok"><b>Aviso enviado para conferência.</b> Ele aparece na aba Pendências do Victor e da Lays. Quando um deles confirmar, a baixa é feita no Omie.</div><div class="acoes"><button class="btn claro" onclick="telaAviso()">Registrar outro aviso</button></div></div>`;
+    } catch (x) { $("#fim").innerHTML = `<div class="aviso erro">${esc(x.message)}</div>`; pronto(); }
   };
 }
 
@@ -363,7 +381,7 @@ async function telaPendencias() {
   const comp = p.comprovantes;
   t.innerHTML = `<div class="cartao"><h2>Avisos aguardando conferência no banco (${p.avisos.length})</h2>
     ${p.avisos.length ? p.avisos.map(a => `<div class="item" data-av="${a.id}"><div class="topo"><b>${esc(a.cliente)}</b><span class="num">${a.valor ? brl(a.valor) : "valor não informado"}</span></div>
-      <small class="vazio">${esc(a.criado_em)} · enviado por ${esc(a.quem)}</small>${a.obs ? `<p>${esc(a.obs)}</p>` : ""}
+      <small class="vazio">${esc(a.criado_em)} · registrado por ${esc(a.quem)}${a.forma ? ` · <b>${esc(a.forma)}</b>` : ""}${a.data_informada ? ` · disse que pagou em ${dataBr(a.data_informada)}` : ""}</small>${a.obs ? `<p>${esc(a.obs)}</p>` : ""}
       <div class="acoes"><button class="btn pequeno" data-ok>Confirmei o crédito</button><button class="btn borda pequeno" data-x>Encerrar sem baixa</button></div><div data-form></div></div>`).join("") : `<p class="vazio">Nenhum aviso pendente.</p>`}</div>
     <div class="cartao"><h2>Comprovantes aguardando o extrato (${comp.length})</h2>
     <p class="vazio">Baixados por comprovante e ainda não encontrados no extrato. Extrato importado até: ${importadoAte(p.extratoAte)}.</p>
@@ -373,11 +391,11 @@ async function telaPendencias() {
     $("[data-x]", div).onclick = async () => { const m = prompt("Motivo (ex.: pagou em dinheiro e a Lays lançou à parte):"); if (m === null) return; try { await api("encerrarAviso", { id, motivo: m }); telaPendencias(); } catch (e) { alert(e.message); } };
     $("[data-ok]", div).onclick = () => {
       const f = $("[data-form]", div);
-      f.innerHTML = `<div class="linha2"><div><label>Valor que entrou</label><input type="text" data-v inputmode="decimal" value="${a.valor ? String(Number(a.valor).toFixed(2)).replace(".", ",") : ""}"></div><div><label>Data do crédito</label><input type="date" data-d value="${hojeIso()}"></div></div>
-        <label>Conta</label>${campoConta("cc-" + id)}<div data-cli></div><div class="acoes"><button class="btn" data-b disabled>${st.eu.modoTeste ? "Simular baixa" : "Dar baixa no Omie"}</button></div><div data-fim></div>`;
+      f.innerHTML = `<div class="linha2"><div><label>Valor que entrou</label><input type="text" data-v inputmode="decimal" value="${a.valor ? String(Number(a.valor).toFixed(2)).replace(".", ",") : ""}"></div><div><label>Data do crédito</label><input type="date" data-d value="${a.data_informada || hojeIso()}"></div></div>
+        <label>Conta</label>${campoConta("cc-" + id, a.forma === "Dinheiro" ? (st.eu.contas.find(c => /Dinheiro/.test(c.nome)) || {}).codigo : "")}<div data-cli></div><div class="acoes"><button class="btn" data-b disabled>${st.eu.modoTeste ? "Simular baixa" : "Dar baixa no Omie"}</button></div><div data-fim></div>`;
       let esc2 = { titulos: [] };
       const val = () => numBr($("[data-v]", f).value);
-      const sc = seletorCliente($("[data-cli]", f), { valorFn: val, inicial: a.codigo_cliente, onMuda: s => { esc2 = s; $("[data-b]", f).disabled = !(s.titulos.length && val() > 0); } });
+      const sc = seletorCliente($("[data-cli]", f), { valorFn: val, inicial: a.codigo_cliente, marcados: (a.titulos || "").split(" ").filter(String), onMuda: s => { esc2 = s; $("[data-b]", f).disabled = !(s.titulos.length && val() > 0); } });
       $("[data-v]", f).oninput = () => sc.atualizar();
       $("[data-b]", f).onclick = async () => {
         $("[data-b]", f).disabled = true;
