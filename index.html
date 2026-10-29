@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Atualizador Omie - Valor</title>
 <meta name="theme-color" content="#010101">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icone-192.png">
+<link rel="apple-touch-icon" href="icone-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Atualizador">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{
@@ -96,6 +101,8 @@ pre{white-space:pre-wrap;font-size:12px;background:#fff;border:1px solid var(--l
 .item .topo{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
 .item .topo b{font-size:16px}
 .sw{display:flex;align-items:center;gap:8px}
+.comp-img{max-width:100%;max-height:420px;border-radius:8px;border:1px solid var(--linha);margin-top:8px}
+.quem-fixo{background:#f4ecdc;border-radius:10px;padding:8px 12px;font-size:14px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -107,8 +114,8 @@ const CLIENT_ID = "544758970206-daej493r9psjt9an4pfq3ceel5u7c963.apps.googleuser
 const LOGO = '<svg class="logo" viewBox="0 0 760 640" role="img" aria-label="Valor Assessoria Empresarial"><path d="M240 30 H720 V540 H30 V60" fill="none" stroke="#ECDBB8" stroke-width="22"/><text x="388" y="372" text-anchor="middle" font-family="Montserrat, Helvetica Neue, Arial, sans-serif" font-weight="700" font-size="250" fill="#A8884F" fill-opacity=".55">VLR</text><text x="375" y="358" text-anchor="middle" font-family="Montserrat, Helvetica Neue, Arial, sans-serif" font-weight="700" font-size="250" fill="#F6EEDE">VLR</text><text x="375" y="630" text-anchor="middle" font-family="Montserrat, Helvetica Neue, Arial, sans-serif" font-size="96" letter-spacing="44" fill="#ECDBB8">VALOR</text></svg>';
 const ABAS = { comprovante: "Comprovante Pix", aviso: "Aviso sem comprovante", pendencias: "Pendências", extrato: "Extrato OFX", gestao: "Gestão", equipe: "Equipe" };
 
-const st = { token: "", eu: null, aba: "", clientes: null, quem: "" };
-try { st.token = sessionStorage.getItem("tk") || ""; st.quem = localStorage.getItem("quem") || ""; } catch (e) {}
+const st = { token: "", eu: null, aba: "", clientes: null, quem: "", renovando: null };
+try { st.token = sessionStorage.getItem("tk") || ""; } catch (e) {}
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -118,7 +125,7 @@ const hojeIso = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.ge
 const r2 = v => Math.round(Number(v || 0) * 100) / 100;
 const numBr = s => { s = String(s || "").trim(); if (/,/.test(s)) s = s.replace(/\./g, "").replace(",", "."); return Number(s) || 0; };
 
-async function api(acao, dados) {
+async function api(acao, dados, tentativa) {
   let j;
   try {
     const r = await fetch(API, { method: "POST", body: JSON.stringify({ token: st.token, acao, dados: dados || {} }) });
@@ -127,10 +134,27 @@ async function api(acao, dados) {
     throw new Error("O servidor do Atualizador não respondeu. Se ele acabou de ser instalado, falta executar a função configurar no editor do Apps Script.");
   }
   if (j.erro) {
-    if (j.login) { sair(j.erro); }
-    throw new Error(j.erro);
+    if (j.login) {
+      // Entrada expirada (1 h): tenta renovar em silêncio e repete uma vez antes de pedir login.
+      if (!tentativa && st.eu && await renovarEntrada()) return api(acao, dados, true);
+      sair(j.erro);
+    }
+    const e = new Error(j.erro); e.codigo = j.codigo || ""; throw e;
   }
   return j.dados;
+}
+
+function renovarEntrada() {
+  if (st.renovando) return st.renovando;
+  st.renovando = new Promise(ok => {
+    if (!window.google || !google.accounts) return ok(false);
+    let feito = false;
+    const fim = v => { if (!feito) { feito = true; st.renovando = null; ok(v); } };
+    google.accounts.id.initialize({ client_id: CLIENT_ID, callback: r => { st.token = r.credential; try { sessionStorage.setItem("tk", st.token); } catch (e) {} fim(true); }, auto_select: true });
+    google.accounts.id.prompt(n => { if (n.isNotDisplayed && n.isNotDisplayed() || n.isSkippedMoment && n.isSkippedMoment()) fim(false); });
+    setTimeout(() => fim(false), 8000);
+  });
+  return st.renovando;
 }
 
 /* ---------------- entrada ---------------- */
@@ -155,7 +179,8 @@ async function carregar() {
   if (!st.token) return telaEntrar();
   $("#app").innerHTML = `<div class="entrar"><div>${LOGO.replace('class="logo"', 'style="height:96px"')}<p>Carregando…</p></div></div>`;
   try { st.eu = await api("eu"); } catch (e) { if (st.token) telaEntrar(e.message); return; }
-  if (st.quem && st.eu.pessoas.indexOf(st.quem) < 0) st.quem = "";
+  // Quem entra com conta própria (Victor, Lays…) já é identificado; na conta da equipe, cada envio escolhe o nome.
+  st.quem = st.eu.nomePadrao && st.eu.pessoas.indexOf(st.eu.nomePadrao) >= 0 ? st.eu.nomePadrao : "";
   st.aba = st.eu.recursos.indexOf(st.aba) >= 0 ? st.aba : st.eu.recursos[0];
   moldura();
 }
@@ -175,11 +200,15 @@ function erroNa(el, e) { el.innerHTML = `<div class="aviso erro">${esc(e.message
 
 /* ---------------- peças comuns ---------------- */
 function campoQuem() {
-  return `<label for="quem">Quem está enviando</label><select id="quem"><option value="">Escolha…</option>${st.eu.pessoas.map(p => `<option ${p === st.quem ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>`;
+  if (st.eu.nomePadrao) return `<div class="quem-fixo">Registrando como <b>${esc(st.eu.nomePadrao)}</b> (pela sua conta Google)</div>`;
+  return `<label for="quem">Quem está enviando</label><select id="quem"><option value="">Escolha o seu nome…</option>${st.eu.pessoas.map(p => `<option ${p === st.quem ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>`;
 }
 function ligarQuem(raiz) {
-  $("#quem", raiz).onchange = e => { st.quem = e.target.value; try { localStorage.setItem("quem", st.quem); } catch (x) {} };
+  const q = $("#quem", raiz);
+  if (q) q.onchange = e => { st.quem = e.target.value; };
 }
+/** Na conta da equipe, depois de cada envio o nome volta a ser pedido. */
+function limparQuem() { if (!st.eu.nomePadrao) st.quem = ""; }
 function campoConta(id, atual) {
   return `<select id="${id}">${st.eu.contas.map(c => `<option value="${c.codigo}" ${(atual ? c.codigo === atual : c.padrao) ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}</select>`;
 }
@@ -243,7 +272,7 @@ function seletorCliente(raiz, { sugestoes, valorFn, inicial, onMuda, marcados, p
     const escolhidos = sel.titulos.filter(t => sel.marcados.has(t.titulo));
     let resta = r2(v); const linhas = [];
     escolhidos.forEach(t => { if (resta <= 0) { linhas.push(`Nº ${esc(t.numero)} ${esc(t.parcela)}: <b>não recebe nada</b> (desmarque)`); return; } const b = Math.min(Number(t.aberto), resta); resta = r2(resta - b); linhas.push(`Nº ${esc(t.numero)} ${esc(t.parcela)} (venc. ${dataBr(t.venc)}): ${brl(b)}${b < Number(t.aberto) ? ` <b>parcial</b>, fica ${brl(Number(t.aberto) - b)} em aberto` : " quitado"}`); });
-    if (resta > 0 && escolhidos.length) linhas.push(`Sobra ${brl(resta)}: entra como <b>juros</b> no último título`);
+    if (resta > 0 && escolhidos.length) { const ult = escolhidos[escolhidos.length - 1]; const multa = r2(Math.min(resta, Number(ult.valor || ult.aberto) * 0.02)); linhas.push(`Sobra ${brl(resta)}: <b>multa</b> ${brl(multa)} + <b>juros</b> ${brl(r2(resta - multa))} no último título`); }
     $('[data-r="res2"]', raiz).innerHTML = !semResumo && escolhidos.length && v > 0 ? `<div class="resumo"><b>Como fica a baixa de ${brl(v)}</b><br>${linhas.join("<br>")}</div>` : "";
     onMuda && onMuda({ codigo: sel.codigo, titulos: escolhidos.map(t => t.titulo) });
   }
@@ -263,7 +292,7 @@ function areaArquivo(input, tratar) {
 /** Reduz fotos para no máximo 1800 px (JPEG) e devolve base64. PDF vai como está. */
 function lerArquivo(arq) {
   return new Promise((ok, falha) => {
-    if (arq.size > 15 * 1024 * 1024) return falha(new Error("Arquivo grande demais (máximo 15 MB)."));
+    if (arq.size > 10 * 1024 * 1024) return falha(new Error("Arquivo grande demais (máximo 10 MB)."));
     const fr = new FileReader();
     fr.onerror = () => falha(new Error("Não consegui ler o arquivo."));
     if (!/^image\//.test(arq.type)) { fr.onload = () => ok({ base64: fr.result.split(",")[1], mime: arq.type || "application/pdf", nome: arq.name, url: "" }); fr.readAsDataURL(arq); return; }
@@ -306,6 +335,7 @@ function formComprovante(el, r, url) {
   el.innerHTML = `${url ? `<img class="thumb" src="${url}" alt="Comprovante">` : ""}
     ${r.duplicado ? `<div class="aviso erro"><b>Este Pix já foi enviado</b> em ${esc(r.duplicado.quando)} por ${esc(r.duplicado.quem)} (${esc(r.duplicado.cliente)}, ${brl(r.duplicado.valor)}). Não dê baixa de novo.</div>` : ""}
     ${l.recebedor !== "valor" ? `<div class="aviso alerta">Não encontrei "Valor Assessoria" como recebedor neste comprovante. Confira se o Pix foi mesmo para a Valor.</div>` : ""}
+    ${r.parecido ? `<div class="aviso alerta"><b>Parece repetido:</b> já há um comprovante de ${esc(r.parecido.cliente)} de ${brl(r.parecido.valor)} baixado em ${esc(r.parecido.quando)} por ${esc(r.parecido.quem)}. Confira antes de dar baixa.</div>` : ""}
     <h3>Confira o que li</h3>
     <div class="linha2"><div><label for="cv">Valor pago</label><input type="text" id="cv" inputmode="decimal" value="${l.valor ? String(l.valor.toFixed(2)).replace(".", ",") : ""}"></div>
     <div><label for="cd">Data do Pix</label><input type="date" id="cd" value="${esc(l.data || hojeIso())}"></div></div>
@@ -318,20 +348,27 @@ function formComprovante(el, r, url) {
   const valor = () => numBr($("#cv").value);
   const sc = seletorCliente($("#cli"), { sugestoes: r.sugestoes, valorFn: valor, inicial: r.sugestoes && r.sugestoes[0] && r.sugestoes[0].pontos >= 85 ? r.sugestoes[0].codigo : "", onMuda: s => { escolha = s; $("#baixar").disabled = !(s.codigo && s.titulos.length && valor() > 0); } });
   $("#cv").oninput = () => sc.atualizar();
-  $("#baixar").onclick = async () => {
+  $("#baixar").onclick = async (ev, confirmarDuplicado) => {
     const b = $("#baixar"); b.disabled = true; b.textContent = "Baixando…";
     try {
-      const res = await api("baixarComprovante", { id: r.id, valor: valor(), data: $("#cd").value, pagador: $("#cp").value, e2e: $("#ce").value.trim(), conta: $("#cc").value, codigoCliente: escolha.codigo, titulos: escolha.titulos });
-      st.clientes = null;
+      const res = await api("baixarComprovante", { id: r.id, valor: valor(), data: $("#cd").value, pagador: $("#cp").value, e2e: $("#ce").value.trim(), conta: $("#cc").value, codigoCliente: escolha.codigo, titulos: escolha.titulos, documentos: l.documentos || [], confirmarDuplicado: !!confirmarDuplicado });
+      st.clientes = null; limparQuem();
       el.innerHTML = resultadoBaixa(res) + `<div class="acoes"><button class="btn claro" onclick="telaComprovante()">Enviar outro comprovante</button></div>`;
-    } catch (x) { $("#fim").innerHTML = `<div class="aviso erro">${esc(x.message)}</div>`; b.disabled = false; b.textContent = "Tentar de novo"; }
+    } catch (x) {
+      if (x.codigo === "duplicado" && !confirmarDuplicado) {
+        if (confirm(x.message + "\n\nOK = é outro pagamento, pode baixar. Cancelar = não baixar.")) return $("#baixar").onclick(null, true);
+      }
+      $("#fim").innerHTML = `<div class="aviso erro">${esc(x.message)}</div>`; b.disabled = false; b.textContent = "Tentar de novo";
+    }
   };
 }
 function resultadoBaixa(res) {
   const teste = res.modo === "teste";
-  return `<div class="aviso ${teste ? "info" : "ok"}"><b>${teste ? "Modo teste: nada foi baixado no Omie." : "Baixa feita no Omie."}</b> ${teste ? "Isto é o que seria feito:" : "Fica pendente de conciliação para o Victor ou a Lays."}</div>
-    <table><tr><th>Título</th><th class="v">Baixa</th><th class="v">Juros</th></tr>${res.baixas.map(b => `<tr><td>${esc(b.titulo)}<br><small class="vazio">venc. ${dataBr(b.venc)}${b.parcial ? " · parcial" : ""}</small>${b.erro ? `<div class="aviso erro">${esc(b.erro)}</div>` : ""}</td><td class="v">${brl(b.valor)}</td><td class="v">${b.juros ? brl(b.juros) : ""}</td></tr>`).join("")}</table>
-    ${teste ? "" : `<p class="vazio">O cliente sai da lista de bloqueados do Painel da Sala na próxima leitura do Omie (até 10 minutos).</p>`}`;
+  const aviso = teste ? `<div class="aviso info"><b>Modo teste: nada foi baixado no Omie.</b> Isto é o que seria feito:</div>`
+    : res.comErro ? `<div class="aviso erro"><b>Baixa incompleta:</b> o Omie recusou parte das parcelas. O que falhou está em Pendências → Baixas incompletas, com botão para refazer.</div>`
+    : `<div class="aviso ok"><b>Baixa feita no Omie.</b> Fica pendente de conciliação para o Victor ou a Lays.</div>`;
+  return aviso + `<table><tr><th>Título</th><th class="v">Baixa</th><th class="v">Multa + juros</th></tr>${res.baixas.map(b => `<tr><td>${esc(b.titulo)}<br><small class="vazio">venc. ${dataBr(b.venc)}${b.parcial ? " · parcial" : ""}${b.anexo && b.anexo !== "ok" ? " · comprovante não anexado no Omie" : ""}</small>${b.erro ? `<div class="aviso erro">${esc(b.erro)}</div>` : ""}</td><td class="v">${brl(b.valor)}</td><td class="v">${(b.juros || b.multa) ? brl((b.juros || 0) + (b.multa || 0)) : ""}</td></tr>`).join("")}</table>
+    ${teste || res.comErro ? "" : `<p class="vazio">O cliente sai da lista de bloqueados do Painel da Sala na próxima leitura do Omie (até 10 minutos).</p>`}`;
 }
 
 /* ---------------- aviso ---------------- */
@@ -368,6 +405,7 @@ function telaAviso() {
     $("#env").disabled = true;
     try {
       await api("registrarAviso", { quem: st.quem, codigoCliente: escolha.codigo, valor: numBr($("#av").value) || "", obs: $("#ao").value, forma, dataInformada: $("#ad").value, titulos: escolha.titulos });
+      limparQuem();
       t.innerHTML = `<div class="cartao"><div class="aviso ok"><b>Aviso enviado para conferência.</b> Ele aparece na aba Pendências do Victor e da Lays. Quando um deles confirmar, a baixa é feita no Omie.</div><div class="acoes"><button class="btn claro" onclick="telaAviso()">Registrar outro aviso</button></div></div>`;
     } catch (x) { $("#fim").innerHTML = `<div class="aviso erro">${esc(x.message)}</div>`; pronto(); }
   };
@@ -378,14 +416,29 @@ async function telaPendencias() {
   const t = $("#tela");
   t.innerHTML = `<div class="carregando">Carregando pendências…</div>`;
   let p; try { p = await api("pendencias"); } catch (e) { return erroNa(t, e); }
-  const comp = p.comprovantes;
-  t.innerHTML = `<div class="cartao"><h2>Avisos aguardando conferência no banco (${p.avisos.length})</h2>
+  const comp = p.comprovantes, inc = p.incompletas || [];
+  t.innerHTML = `${inc.length ? `<div class="cartao"><h2>Baixas incompletas (${inc.length})</h2><p class="vazio">O Omie recusou parte das parcelas. Confira o erro e refaça só o que faltou.</p>
+    ${inc.map((g, i) => `<div class="item" data-inc="${i}"><div class="topo"><b>${esc(g.cliente)}</b><span class="num">${brl(g.valor)} a refazer</span></div>
+      <small class="vazio">${esc({ comprovante: "Comprovante Pix", aviso: "Aviso", extrato: "Extrato" }[g.origem] || g.origem)} · ${dataBr(g.data)} · por ${esc(g.por)}</small>
+      ${g.itens.map(it => `<div class="aviso erro">Título ${esc(it.titulo)} (${brl(it.valor)}): ${esc(it.erro)}</div>`).join("")}
+      <div class="acoes"><button class="btn pequeno" data-ref>Refazer no Omie</button></div><div data-fim></div></div>`).join("")}</div>` : ""}
+    <div class="cartao"><h2>Avisos aguardando conferência no banco (${p.avisos.length})</h2>
     ${p.avisos.length ? p.avisos.map(a => `<div class="item" data-av="${a.id}"><div class="topo"><b>${esc(a.cliente)}</b><span class="num">${a.valor ? brl(a.valor) : "valor não informado"}</span></div>
       <small class="vazio">${esc(a.criado_em)} · registrado por ${esc(a.quem)}${a.forma ? ` · <b>${esc(a.forma)}</b>` : ""}${a.data_informada ? ` · disse que pagou em ${dataBr(a.data_informada)}` : ""}</small>${a.obs ? `<p>${esc(a.obs)}</p>` : ""}
       <div class="acoes"><button class="btn pequeno" data-ok>Confirmei o crédito</button><button class="btn borda pequeno" data-x>Encerrar sem baixa</button></div><div data-form></div></div>`).join("") : `<p class="vazio">Nenhum aviso pendente.</p>`}</div>
     <div class="cartao"><h2>Comprovantes aguardando o extrato (${comp.length})</h2>
     <p class="vazio">Baixados por comprovante e ainda não encontrados no extrato. Extrato importado até: ${importadoAte(p.extratoAte)}.</p>
-    ${comp.length ? `<table><tr><th>Cliente</th><th>Pix</th><th class="v">Valor</th><th></th></tr>${comp.map(c => `<tr data-cp="${c.id}"><td>${esc(c.cliente)}<br><small class="vazio">por ${esc(c.quem)}${c.status === "alerta" ? ' · <span class="tag bloq">NÃO ENTROU</span>' : c.status === "simulado" ? ' · teste' : ""}</small></td><td>${dataBr(c.data_pix)}${c.arquivo ? `<br><a href="${c.arquivo}" target="_blank" rel="noopener">ver</a>` : ""}</td><td class="v">${brl(c.valor)}</td><td><button class="btn borda pequeno" data-conf>Conferido</button> <button class="btn borda pequeno" data-desc>Descartar</button></td></tr>`).join("")}</table>` : `<p class="vazio">Nenhum.</p>`}</div>`;
+    ${comp.length ? comp.map(c => `<div class="item" data-cp="${c.id}"><div class="topo"><b>${esc(c.cliente)}</b><span class="num">${brl(c.valor)}</span></div>
+      <small class="vazio">Pix de ${dataBr(c.data_pix)} · enviado por ${esc(c.quem)}${c.status === "alerta" ? ' · <span class="tag bloq">NÃO ENTROU NO EXTRATO</span>' : ""}${c.e2e ? ` · ID ${esc(c.e2e)}` : ""}</small>
+      <div class="acoes"><button class="btn borda pequeno" data-ver>Ver comprovante</button><button class="btn borda pequeno" data-conf>Conferido no banco</button><button class="btn borda pequeno" data-desc>Descartar</button></div><div data-img></div></div>`).join("") : `<p class="vazio">Nenhum.</p>`}</div>`;
+  t.querySelectorAll("[data-inc]").forEach(div => {
+    const g = inc[+div.dataset.inc];
+    $("[data-ref]", div).onclick = async () => {
+      $("[data-ref]", div).disabled = true;
+      try { const res = await api("refazerBaixa", { origem: g.origem, origemId: g.origemId }); $("[data-fim]", div).innerHTML = resultadoBaixa(res); st.clientes = null; }
+      catch (e) { $("[data-fim]", div).innerHTML = `<div class="aviso erro">${esc(e.message)}</div>`; $("[data-ref]", div).disabled = false; }
+    };
+  });
   t.querySelectorAll("[data-av]").forEach(div => {
     const id = div.dataset.av, a = p.avisos.find(x => x.id === id);
     $("[data-x]", div).onclick = async () => { const m = prompt("Motivo (ex.: pagou em dinheiro e a Lays lançou à parte):"); if (m === null) return; try { await api("encerrarAviso", { id, motivo: m }); telaPendencias(); } catch (e) { alert(e.message); } };
@@ -406,8 +459,13 @@ async function telaPendencias() {
   });
   t.querySelectorAll("[data-cp]").forEach(tr => {
     const id = tr.dataset.cp;
-    $("[data-conf]", tr).onclick = async () => { try { await api("encerrarComprovante", { id }); telaPendencias(); } catch (e) { alert(e.message); } };
-    $("[data-desc]", tr).onclick = async () => { if (!confirm("Descartar este comprovante? Se a baixa já foi feita no Omie, estorne lá.")) return; try { await api("encerrarComprovante", { id, descartar: true }); telaPendencias(); } catch (e) { alert(e.message); } };
+    $("[data-ver]", tr).onclick = async () => {
+      const alvo = $("[data-img]", tr); alvo.innerHTML = `<div class="carregando">Carregando o comprovante…</div>`;
+      try { const a = await api("verComprovante", { id }); const src = `data:${a.mime};base64,${a.base64}`; alvo.innerHTML = /^image\//.test(a.mime) ? `<img class="comp-img" src="${src}" alt="Comprovante">` : `<a class="btn borda pequeno" href="${src}" download="${esc(a.nome)}">Baixar o PDF do comprovante</a>`; }
+      catch (e) { erroNa(alvo, e); }
+    };
+    $("[data-conf]", tr).onclick = async () => { if (!confirm("Confirmar que este Pix entrou no banco? Ele sai da lista de espera.")) return; try { await api("encerrarComprovante", { id }); telaPendencias(); } catch (e) { alert(e.message); } };
+    $("[data-desc]", tr).onclick = async () => { if (!confirm("Descartar este comprovante? A baixa já feita no Omie NÃO é desfeita: se precisar, estorne lá.")) return; try { await api("encerrarComprovante", { id, descartar: true }); telaPendencias(); } catch (e) { alert(e.message); } };
   });
 }
 
@@ -419,26 +477,37 @@ async function telaExtrato(msg) {
     <p class="vazio" id="ate">Importado até: …</p>
     <div id="imp">${msg || ""}</div></div><div id="lista"><div class="carregando">Carregando…</div></div>`;
   areaArquivo($("#ofx"), async arq => {
-    const imp = $("#imp"); imp.innerHTML = `<div class="carregando">Lendo o extrato e comparando com o Omie…</div>`;
+    const imp = $("#imp");
+    const etapas = ["Lendo o arquivo…", "Guardando os créditos novos…", "Comparando com os comprovantes e com o Omie… (pode levar até 1 minuto)", "Ainda comparando com o Omie…"];
+    let i = 0; imp.innerHTML = `<div class="carregando">${etapas[0]}</div>`;
+    const timer = setInterval(() => { i = Math.min(i + 1, etapas.length - 1); imp.innerHTML = `<div class="carregando">${etapas[i]}</div>`; }, 6000);
     try {
       const texto = await arq.text();
       const r = await api("importarOfx", { texto, nome: arq.name });
       const z = r.resumo || {};
+      clearInterval(timer);
       telaExtrato(`<div class="aviso ok"><b>${r.novos} crédito(s) novo(s)</b> de ${dataBr(r.de)} a ${dataBr(r.ate)} · conta ${esc(r.conta)}.<br>
-        ${z.comprovante || 0} já baixado(s) por comprovante · ${z.ja_no_omie || 0} já lançado(s) no Omie · ${z.pendentes || 0} para você decidir.</div>`);
-    } catch (x) { erroNa(imp, x); }
+        ${z.comprovante || 0} já baixado(s) por comprovante · ${z.ja_no_omie || 0} já lançado(s) no Omie · ${z.pendentes || 0} para você decidir${r.antigos ? ` · ${r.antigos} anterior(es) à data de corte, ignorado(s)` : ""}.</div>`);
+    } catch (x) { clearInterval(timer); erroNa(imp, x); }
   });
   let d; try { d = await api("extrato", { reanalisar: !!st.reanalisar }); } catch (e) { st.reanalisar = false; return erroNa($("#lista"), e); }
   st.reanalisar = false;
   $("#ate").innerHTML = "Importado até: " + importadoAte(d.ate);
   const nivel = { certeza: '<span class="tag cert">CERTEZA</span>', provavel: '<span class="tag prov">PROVÁVEL</span>', sem_dono: '<span class="tag sem">SEM DONO</span>' };
   $("#lista").innerHTML = `<div class="cartao"><h2>Créditos para decidir (${d.pendentes.length})</h2>
-    ${d.pendentes.length ? `<div class="acoes" style="margin:0 0 12px"><button class="btn borda pequeno" id="rean">Comparar de novo com o Omie</button><span class="vazio" style="align-self:center">use depois que a Lays baixar algo direto no Omie</span></div>` : ""}
+    ${d.pendentes.length ? `<div class="acoes" style="margin:0 0 12px"><button class="btn borda pequeno" id="rean">Comparar de novo com o Omie</button><span class="vazio" style="align-self:center">use depois que a Lays baixar algo direto no Omie</span></div>
+    <div class="acoes" style="margin:0 0 12px;align-items:center"><span class="vazio">Ignorar os créditos anteriores a</span><input type="date" id="corte" style="width:auto" value="${esc(d.corte || "")}"><button class="btn borda pequeno" id="ign-antes">Ignorar antes dessa data</button><span class="vazio">(vale também para as próximas importações)</span></div>` : ""}
     ${d.pendentes.length ? d.pendentes.map(l => `<div class="item" data-l="${esc(l.id)}"><div class="topo"><b class="num">${brl(l.valor)}</b><span>${nivel[l.nivel] || ""} ${dataBr(l.data)}</span></div>
       <div>${esc(l.nome)} <small class="vazio">${esc(l.memo)}</small></div>
       ${l.omie ? `<div class="aviso info">Parece já baixado no Omie: <b>${esc(l.omie.cliente)}</b>, mesmo valor, em ${dataBr(l.omie.data)}. Se for o mesmo pagamento, toque em "Já baixado no Omie".</div>` : ""}<div data-cli></div>
       <div class="acoes"><button class="btn pequeno" data-b disabled>${st.eu.modoTeste ? "Simular baixa" : "Baixar"}</button><button class="btn ${l.omie ? "claro" : "borda"} pequeno" data-omie>Já baixado no Omie</button><button class="btn borda pequeno" data-ign>Não é cliente</button></div><div data-fim></div></div>`).join("") : `<p class="vazio">Nada pendente.</p>`}</div>
-    <div class="cartao"><h2>Últimos resolvidos</h2>${d.recentes.length ? `<table><tr><th>Data</th><th>Lançamento</th><th class="v">Valor</th><th>Situação</th></tr>${d.recentes.map(r => `<tr><td>${dataBr(r.data)}</td><td>${esc(r.nome)}${r.cliente ? `<br><small class="vazio">${esc(r.cliente)}</small>` : ""}</td><td class="v">${brl(r.valor)}</td><td>${esc({ comprovante: "Comprovante", ja_no_omie: "Já no Omie", baixado: "Baixado", simulado: "Teste", ignorado: "Ignorado" }[r.status] || r.status)}</td></tr>`).join("")}</table>` : `<p class="vazio">Nenhum ainda.</p>`}</div>`;
+    <div class="cartao"><h2>Últimos resolvidos</h2>${d.recentes.length ? `<table><tr><th>Data</th><th>Lançamento</th><th class="v">Valor</th><th>Situação</th></tr>${d.recentes.map(r => `<tr><td>${dataBr(r.data)}</td><td>${esc(r.nome)}${r.cliente ? `<br><small class="vazio">${esc(r.cliente)}</small>` : ""}</td><td class="v">${brl(r.valor)}</td><td>${esc({ comprovante: "Comprovante", ja_no_omie: "Já no Omie", baixado: "Baixado", parcial: "Incompleta", ignorado: "Ignorado", antigo: "Antigo" }[r.status] || r.status)}${r.reabre ? ` <button class="btn borda pequeno" data-reabre="${esc(r.id)}">Reabrir</button>` : ""}</td></tr>`).join("")}</table>` : `<p class="vazio">Nenhum ainda.</p>`}</div>`;
+  if ($("#ign-antes")) $("#ign-antes").onclick = async () => {
+    const ate = $("#corte").value; if (!ate) return alert("Escolha a data.");
+    if (!confirm("Ignorar todos os créditos pendentes anteriores a " + dataBr(ate) + "? Eles vão para 'Últimos resolvidos' como Antigo e podem ser reabertos um a um.")) return;
+    try { const r = await api("ignorarAntes", { ate }); telaExtrato(`<div class="aviso ok">${r.marcados} crédito(s) marcado(s) como antigo(s).</div>`); } catch (e) { alert(e.message); }
+  };
+  $("#lista").querySelectorAll("[data-reabre]").forEach(b => b.onclick = async () => { try { await api("reabrirExtrato", { id: b.dataset.reabre }); telaExtrato(); } catch (e) { alert(e.message); } });
   if ($("#rean")) $("#rean").onclick = () => { st.reanalisar = true; $("#lista").innerHTML = `<div class="carregando">Comparando com o Omie…</div>`; telaExtrato(); };
   $("#lista").querySelectorAll("[data-l]").forEach(div => {
     const l = d.pendentes.find(x => x.id === div.dataset.l);
@@ -449,9 +518,9 @@ async function telaExtrato(msg) {
       try { const res = await api("baixarExtrato", { id: l.id, codigoCliente: esc2.codigo, titulos: esc2.titulos }); div.innerHTML = `<div class="topo"><b class="num">${brl(l.valor)}</b><span>${dataBr(l.data)}</span></div>` + resultadoBaixa(res); st.clientes = null; }
       catch (e) { $("[data-fim]", div).innerHTML = `<div class="aviso erro">${esc(e.message)}</div>`; $("[data-b]", div).disabled = false; }
     };
-    const marcar = status => async () => { try { await api("marcarExtrato", { id: l.id, status }); div.remove(); } catch (e) { alert(e.message); } };
-    $("[data-omie]", div).onclick = marcar("ja_no_omie");
-    $("[data-ign]", div).onclick = marcar("ignorado");
+    const marcar = (status, msg) => async () => { if (!confirm(msg)) return; try { await api("marcarExtrato", { id: l.id, status }); div.remove(); } catch (e) { alert(e.message); } };
+    $("[data-omie]", div).onclick = marcar("ja_no_omie", `Marcar ${brl(l.valor)} de ${dataBr(l.data)} como já baixado no Omie? Nada é lançado; dá para reabrir em "Últimos resolvidos".`);
+    $("[data-ign]", div).onclick = marcar("ignorado", `Marcar ${brl(l.valor)} de ${dataBr(l.data)} como "não é de cliente"? Dá para reabrir em "Últimos resolvidos".`);
   });
 }
 
@@ -468,7 +537,7 @@ async function telaGestao() {
     ${g.alertas.length ? `<div class="cartao"><h2>Pix sem crédito no extrato (${g.alertas.length})</h2><table>${g.alertas.map(a => `<tr><td>${esc(a.cliente)}<br><small class="vazio">Pix de ${dataBr(a.data_pix)} · por ${esc(a.quem)}</small></td><td class="v">${brl(a.valor)}</td></tr>`).join("")}</table></div>` : ""}
     <div class="cartao"><h2>Baixas por dia (30 dias)</h2><div class="barras">${g.dias.map((d, i) => `<i class="${i === g.dias.length - 1 ? "hoje" : ""}" style="height:${(d.valor / max * 100).toFixed(1)}%" title="${dataBr(d.dia)}: ${brl(d.valor)}"></i>`).join("")}</div>
       <div style="display:flex;justify-content:space-between" class="vazio"><small>${dataBr(g.dias[0].dia)}</small><small>hoje</small></div></div>
-    <div class="cartao"><h2>Pendências</h2><table><tr><td>Comprovantes aguardando o extrato</td><td class="v">${g.aguardandoExtrato}</td></tr><tr><td>Avisos aguardando conferência no banco</td><td class="v">${g.avisos}</td></tr><tr><td>Créditos do extrato para decidir</td><td class="v">${g.extratoPendentes}</td></tr><tr><td>Extrato importado até</td><td class="v">${importadoAte(g.extratoAte)}</td></tr></table></div>
+    <div class="cartao"><h2>Pendências</h2><table>${g.incompletas ? `<tr><td><b>Baixas incompletas (erro no Omie)</b></td><td class="v"><b>${g.incompletas}</b></td></tr>` : ""}<tr><td>Comprovantes aguardando o extrato</td><td class="v">${g.aguardandoExtrato}</td></tr><tr><td>Avisos aguardando conferência no banco</td><td class="v">${g.avisos}</td></tr><tr><td>Créditos do extrato para decidir</td><td class="v">${g.extratoPendentes}</td></tr><tr><td>Extrato importado até</td><td class="v">${importadoAte(g.extratoAte)}</td></tr></table></div>
     <div class="cartao"><h2>No mês, por origem</h2>${Object.keys(g.porOrigem).length ? `<table>${Object.keys(g.porOrigem).map(k => `<tr><td>${esc(origem[k] || k)}</td><td class="v">${brl(g.porOrigem[k])}</td></tr>`).join("")}</table>` : `<p class="vazio">Nada ainda.</p>`}
       <h3>Comprovantes enviados no mês, por pessoa</h3>${Object.keys(g.porPessoa).length ? `<table>${Object.keys(g.porPessoa).sort((a, b) => g.porPessoa[b] - g.porPessoa[a]).map(k => `<tr><td>${esc(k)}</td><td class="v">${g.porPessoa[k]}</td></tr>`).join("")}</table>` : `<p class="vazio">Nenhum ainda.</p>`}</div>
     <div class="cartao"><h2>Clientes bloqueados (2 ou mais meses em atraso)</h2>${g.bloqueados.length ? `<table><tr><th>Cliente</th><th class="v">Meses</th><th class="v">Em atraso</th></tr>${g.bloqueados.sort((a, b) => b.atrasado - a.atrasado).map(b => `<tr><td>${esc(b.nome)}</td><td class="v">${b.meses}</td><td class="v">${brl(b.atrasado)}</td></tr>`).join("")}</table>` : `<p class="vazio">Nenhum.</p>`}</div>
