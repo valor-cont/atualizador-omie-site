@@ -118,8 +118,13 @@ const r2 = v => Math.round(Number(v || 0) * 100) / 100;
 const numBr = s => { s = String(s || "").trim(); if (/,/.test(s)) s = s.replace(/\./g, "").replace(",", "."); return Number(s) || 0; };
 
 async function api(acao, dados) {
-  const r = await fetch(API, { method: "POST", body: JSON.stringify({ token: st.token, acao, dados: dados || {} }) });
-  const j = await r.json();
+  let j;
+  try {
+    const r = await fetch(API, { method: "POST", body: JSON.stringify({ token: st.token, acao, dados: dados || {} }) });
+    j = JSON.parse(await r.text());
+  } catch (e) {
+    throw new Error("O servidor do Atualizador não respondeu. Se ele acabou de ser instalado, falta executar a função configurar no editor do Apps Script.");
+  }
   if (j.erro) {
     if (j.login) { sair(j.erro); }
     throw new Error(j.erro);
@@ -148,7 +153,7 @@ function sair(msg) {
 async function carregar() {
   if (!st.token) return telaEntrar();
   $("#app").innerHTML = `<div class="entrar"><div>${LOGO.replace('class="logo"', 'style="height:96px"')}<p>Carregando…</p></div></div>`;
-  try { st.eu = await api("eu"); } catch (e) { return; }
+  try { st.eu = await api("eu"); } catch (e) { if (st.token) telaEntrar(e.message); return; }
   if (st.quem && st.eu.pessoas.indexOf(st.quem) < 0) st.quem = "";
   st.aba = st.eu.recursos.indexOf(st.aba) >= 0 ? st.aba : st.eu.recursos[0];
   moldura();
