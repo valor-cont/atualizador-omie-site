@@ -170,6 +170,7 @@ function moldura() {
   document.querySelectorAll("nav button").forEach(b => b.onclick = () => { st.aba = b.dataset.a; moldura(); });
   ({ comprovante: telaComprovante, aviso: telaAviso, pendencias: telaPendencias, extrato: telaExtrato, gestao: telaGestao, equipe: telaEquipe })[st.aba]();
 }
+const importadoAte = lista => (lista || []).map(x => `${esc(x.nome)}: <b>${x.ate ? dataBr(x.ate) : "nenhum ainda"}</b>`).join(" · ");
 function erroNa(el, e) { el.innerHTML = `<div class="aviso erro">${esc(e.message || e)}</div>`; }
 
 /* ---------------- peças comuns ---------------- */
@@ -365,7 +366,7 @@ async function telaPendencias() {
       <small class="vazio">${esc(a.criado_em)} · enviado por ${esc(a.quem)}</small>${a.obs ? `<p>${esc(a.obs)}</p>` : ""}
       <div class="acoes"><button class="btn pequeno" data-ok>Confirmei o crédito</button><button class="btn borda pequeno" data-x>Encerrar sem baixa</button></div><div data-form></div></div>`).join("") : `<p class="vazio">Nenhum aviso pendente.</p>`}</div>
     <div class="cartao"><h2>Comprovantes aguardando o extrato (${comp.length})</h2>
-    <p class="vazio">Baixados por comprovante e ainda não encontrados no extrato. Extrato importado até: <b>${p.extratoAte ? dataBr(p.extratoAte) : "nenhum ainda"}</b>.</p>
+    <p class="vazio">Baixados por comprovante e ainda não encontrados no extrato. Extrato importado até: ${importadoAte(p.extratoAte)}.</p>
     ${comp.length ? `<table><tr><th>Cliente</th><th>Pix</th><th class="v">Valor</th><th></th></tr>${comp.map(c => `<tr data-cp="${c.id}"><td>${esc(c.cliente)}<br><small class="vazio">por ${esc(c.quem)}${c.status === "alerta" ? ' · <span class="tag bloq">NÃO ENTROU</span>' : c.status === "simulado" ? ' · teste' : ""}</small></td><td>${dataBr(c.data_pix)}${c.arquivo ? `<br><a href="${c.arquivo}" target="_blank" rel="noopener">ver</a>` : ""}</td><td class="v">${brl(c.valor)}</td><td><button class="btn borda pequeno" data-conf>Conferido</button> <button class="btn borda pequeno" data-desc>Descartar</button></td></tr>`).join("")}</table>` : `<p class="vazio">Nenhum.</p>`}</div>`;
   t.querySelectorAll("[data-av]").forEach(div => {
     const id = div.dataset.av, a = p.avisos.find(x => x.id === id);
@@ -397,6 +398,7 @@ async function telaExtrato(msg) {
   const t = $("#tela");
   t.innerHTML = `<div class="cartao"><h2>Importar extrato (OFX)</h2>
     <label class="arquivo"><input type="file" id="ofx" accept=".ofx,.OFX,application/x-ofx,text/plain"><b>Toque para escolher ou arraste aqui o arquivo .ofx</b><span class="vazio">Cora ou Itaú. Pode repetir dias: o que já foi importado é ignorado.</span></label>
+    <p class="vazio" id="ate">Importado até: …</p>
     <div id="imp">${msg || ""}</div></div><div id="lista"><div class="carregando">Carregando…</div></div>`;
   areaArquivo($("#ofx"), async arq => {
     const imp = $("#imp"); imp.innerHTML = `<div class="carregando">Lendo o extrato e comparando com o Omie…</div>`;
@@ -408,13 +410,17 @@ async function telaExtrato(msg) {
         ${z.comprovante || 0} já baixado(s) por comprovante · ${z.ja_no_omie || 0} já lançado(s) no Omie · ${z.pendentes || 0} para você decidir.</div>`);
     } catch (x) { erroNa(imp, x); }
   });
-  let d; try { d = await api("extrato"); } catch (e) { return erroNa($("#lista"), e); }
+  let d; try { d = await api("extrato", { reanalisar: !!st.reanalisar }); } catch (e) { st.reanalisar = false; return erroNa($("#lista"), e); }
+  st.reanalisar = false;
+  $("#ate").innerHTML = "Importado até: " + importadoAte(d.ate);
   const nivel = { certeza: '<span class="tag cert">CERTEZA</span>', provavel: '<span class="tag prov">PROVÁVEL</span>', sem_dono: '<span class="tag sem">SEM DONO</span>' };
   $("#lista").innerHTML = `<div class="cartao"><h2>Créditos para decidir (${d.pendentes.length})</h2>
+    ${d.pendentes.length ? `<div class="acoes" style="margin:0 0 12px"><button class="btn borda pequeno" id="rean">Comparar de novo com o Omie</button><span class="vazio" style="align-self:center">use depois que a Lays baixar algo direto no Omie</span></div>` : ""}
     ${d.pendentes.length ? d.pendentes.map(l => `<div class="item" data-l="${esc(l.id)}"><div class="topo"><b class="num">${brl(l.valor)}</b><span>${nivel[l.nivel] || ""} ${dataBr(l.data)}</span></div>
       <div>${esc(l.nome)} <small class="vazio">${esc(l.memo)}</small></div><div data-cli></div>
       <div class="acoes"><button class="btn pequeno" data-b disabled>${st.eu.modoTeste ? "Simular baixa" : "Baixar"}</button><button class="btn borda pequeno" data-omie>Já baixado no Omie</button><button class="btn borda pequeno" data-ign>Não é cliente</button></div><div data-fim></div></div>`).join("") : `<p class="vazio">Nada pendente.</p>`}</div>
     <div class="cartao"><h2>Últimos resolvidos</h2>${d.recentes.length ? `<table><tr><th>Data</th><th>Lançamento</th><th class="v">Valor</th><th>Situação</th></tr>${d.recentes.map(r => `<tr><td>${dataBr(r.data)}</td><td>${esc(r.nome)}${r.cliente ? `<br><small class="vazio">${esc(r.cliente)}</small>` : ""}</td><td class="v">${brl(r.valor)}</td><td>${esc({ comprovante: "Comprovante", ja_no_omie: "Já no Omie", baixado: "Baixado", simulado: "Teste", ignorado: "Ignorado" }[r.status] || r.status)}</td></tr>`).join("")}</table>` : `<p class="vazio">Nenhum ainda.</p>`}</div>`;
+  if ($("#rean")) $("#rean").onclick = () => { st.reanalisar = true; $("#lista").innerHTML = `<div class="carregando">Comparando com o Omie…</div>`; telaExtrato(); };
   $("#lista").querySelectorAll("[data-l]").forEach(div => {
     const l = d.pendentes.find(x => x.id === div.dataset.l);
     let esc2 = { codigo: "", titulos: [] };
@@ -443,7 +449,7 @@ async function telaGestao() {
     ${g.alertas.length ? `<div class="cartao"><h2>Pix sem crédito no extrato (${g.alertas.length})</h2><table>${g.alertas.map(a => `<tr><td>${esc(a.cliente)}<br><small class="vazio">Pix de ${dataBr(a.data_pix)} · por ${esc(a.quem)}</small></td><td class="v">${brl(a.valor)}</td></tr>`).join("")}</table></div>` : ""}
     <div class="cartao"><h2>Baixas por dia (30 dias)</h2><div class="barras">${g.dias.map((d, i) => `<i class="${i === g.dias.length - 1 ? "hoje" : ""}" style="height:${(d.valor / max * 100).toFixed(1)}%" title="${dataBr(d.dia)}: ${brl(d.valor)}"></i>`).join("")}</div>
       <div style="display:flex;justify-content:space-between" class="vazio"><small>${dataBr(g.dias[0].dia)}</small><small>hoje</small></div></div>
-    <div class="cartao"><h2>Pendências</h2><table><tr><td>Comprovantes aguardando o extrato</td><td class="v">${g.aguardandoExtrato}</td></tr><tr><td>Avisos aguardando conferência no banco</td><td class="v">${g.avisos}</td></tr><tr><td>Créditos do extrato para decidir</td><td class="v">${g.extratoPendentes}</td></tr><tr><td>Extrato importado até</td><td class="v">${g.extratoAte ? dataBr(g.extratoAte) : "—"}</td></tr></table></div>
+    <div class="cartao"><h2>Pendências</h2><table><tr><td>Comprovantes aguardando o extrato</td><td class="v">${g.aguardandoExtrato}</td></tr><tr><td>Avisos aguardando conferência no banco</td><td class="v">${g.avisos}</td></tr><tr><td>Créditos do extrato para decidir</td><td class="v">${g.extratoPendentes}</td></tr><tr><td>Extrato importado até</td><td class="v">${importadoAte(g.extratoAte)}</td></tr></table></div>
     <div class="cartao"><h2>No mês, por origem</h2>${Object.keys(g.porOrigem).length ? `<table>${Object.keys(g.porOrigem).map(k => `<tr><td>${esc(origem[k] || k)}</td><td class="v">${brl(g.porOrigem[k])}</td></tr>`).join("")}</table>` : `<p class="vazio">Nada ainda.</p>`}
       <h3>Comprovantes enviados no mês, por pessoa</h3>${Object.keys(g.porPessoa).length ? `<table>${Object.keys(g.porPessoa).sort((a, b) => g.porPessoa[b] - g.porPessoa[a]).map(k => `<tr><td>${esc(k)}</td><td class="v">${g.porPessoa[k]}</td></tr>`).join("")}</table>` : `<p class="vazio">Nenhum ainda.</p>`}</div>
     <div class="cartao"><h2>Clientes bloqueados (2 ou mais meses em atraso)</h2>${g.bloqueados.length ? `<table><tr><th>Cliente</th><th class="v">Meses</th><th class="v">Em atraso</th></tr>${g.bloqueados.sort((a, b) => b.atrasado - a.atrasado).map(b => `<tr><td>${esc(b.nome)}</td><td class="v">${b.meses}</td><td class="v">${brl(b.atrasado)}</td></tr>`).join("")}</table>` : `<p class="vazio">Nenhum.</p>`}</div>
