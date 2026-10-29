@@ -44,6 +44,7 @@ textarea{min-height:70px}
 .arquivo{display:block;border:2px dashed var(--dourado);border-radius:var(--raio);padding:26px 16px;text-align:center;cursor:pointer;background:#fffaf0}
 .arquivo input{display:none}
 .arquivo b{display:block;font-size:16px;margin-bottom:4px}
+.arquivo.sobre{background:var(--bege);border-style:solid}
 .aviso{border-radius:10px;padding:10px 12px;margin:10px 0;font-size:14px}
 .aviso.erro{background:#fbe9e7;color:var(--erro)}
 .aviso.alerta{background:#fdf0e6;color:var(--alerta)}
@@ -248,6 +249,15 @@ function seletorCliente(raiz, { sugestoes, valorFn, inicial, onMuda }) {
   return { atualizar };
 }
 
+/** Área de arquivo: tocar para escolher ou arrastar e soltar. */
+function areaArquivo(input, tratar) {
+  const area = input.closest(".arquivo");
+  input.onchange = () => { const f = input.files[0]; input.value = ""; if (f) tratar(f); };
+  ["dragenter", "dragover"].forEach(ev => area.addEventListener(ev, e => { e.preventDefault(); area.classList.add("sobre"); }));
+  ["dragleave", "drop"].forEach(ev => area.addEventListener(ev, e => { e.preventDefault(); area.classList.remove("sobre"); }));
+  area.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) tratar(f); });
+}
+
 /** Reduz fotos para no máximo 1800 px (JPEG) e devolve base64. PDF vai como está. */
 function lerArquivo(arq) {
   return new Promise((ok, falha) => {
@@ -275,21 +285,19 @@ function lerArquivo(arq) {
 function telaComprovante() {
   const t = $("#tela");
   t.innerHTML = `<div class="cartao"><h2>Enviar comprovante de Pix</h2>${campoQuem()}
-    <label class="arquivo" style="margin-top:14px"><input type="file" id="arq" accept="image/*,application/pdf"><b>Toque para escolher a foto ou o PDF</b><span class="vazio">Print do comprovante que o cliente mandou</span></label>
+    <label class="arquivo" style="margin-top:14px"><input type="file" id="arq" accept="image/*,application/pdf"><b>Toque para escolher ou arraste aqui a foto ou o PDF</b><span class="vazio">Print do comprovante que o cliente mandou</span></label>
     <div id="passo"></div></div>`;
   ligarQuem(t);
-  $("#arq").onchange = async e => {
-    const arq = e.target.files[0]; if (!arq) return;
+  areaArquivo($("#arq"), async arq => {
     const passo = $("#passo");
-    if (!st.quem) { passo.innerHTML = `<div class="aviso erro">Escolha primeiro quem está enviando.</div>`; e.target.value = ""; return; }
+    if (!st.quem) { passo.innerHTML = `<div class="aviso erro">Escolha primeiro quem está enviando.</div>`; return; }
     passo.innerHTML = `<div class="carregando">Lendo o comprovante… (uns 10 segundos)</div>`;
     try {
       const f = await lerArquivo(arq);
       const r = await api("lerComprovante", { arquivo: f.base64, mime: f.mime, nome: f.nome, quem: st.quem });
       formComprovante(passo, r, f.url);
     } catch (x) { erroNa(passo, x); }
-    e.target.value = "";
-  };
+  });
 }
 function formComprovante(el, r, url) {
   const l = r.lido;
@@ -388,10 +396,9 @@ async function telaPendencias() {
 async function telaExtrato(msg) {
   const t = $("#tela");
   t.innerHTML = `<div class="cartao"><h2>Importar extrato (OFX)</h2>
-    <label class="arquivo"><input type="file" id="ofx" accept=".ofx,.OFX,application/x-ofx,text/plain"><b>Toque para escolher o arquivo .ofx</b><span class="vazio">Cora ou Itaú. Pode repetir dias: o que já foi importado é ignorado.</span></label>
+    <label class="arquivo"><input type="file" id="ofx" accept=".ofx,.OFX,application/x-ofx,text/plain"><b>Toque para escolher ou arraste aqui o arquivo .ofx</b><span class="vazio">Cora ou Itaú. Pode repetir dias: o que já foi importado é ignorado.</span></label>
     <div id="imp">${msg || ""}</div></div><div id="lista"><div class="carregando">Carregando…</div></div>`;
-  $("#ofx").onchange = async e => {
-    const arq = e.target.files[0]; if (!arq) return;
+  areaArquivo($("#ofx"), async arq => {
     const imp = $("#imp"); imp.innerHTML = `<div class="carregando">Lendo o extrato e comparando com o Omie…</div>`;
     try {
       const texto = await arq.text();
@@ -400,7 +407,7 @@ async function telaExtrato(msg) {
       telaExtrato(`<div class="aviso ok"><b>${r.novos} crédito(s) novo(s)</b> de ${dataBr(r.de)} a ${dataBr(r.ate)} · conta ${esc(r.conta)}.<br>
         ${z.comprovante || 0} já baixado(s) por comprovante · ${z.ja_no_omie || 0} já lançado(s) no Omie · ${z.pendentes || 0} para você decidir.</div>`);
     } catch (x) { erroNa(imp, x); }
-  };
+  });
   let d; try { d = await api("extrato"); } catch (e) { return erroNa($("#lista"), e); }
   const nivel = { certeza: '<span class="tag cert">CERTEZA</span>', provavel: '<span class="tag prov">PROVÁVEL</span>', sem_dono: '<span class="tag sem">SEM DONO</span>' };
   $("#lista").innerHTML = `<div class="cartao"><h2>Créditos para decidir (${d.pendentes.length})</h2>
